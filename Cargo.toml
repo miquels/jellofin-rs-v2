@@ -15,10 +15,10 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "compression-gzip", "fs"] }
 
 # Async runtime
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "signal", "time", "io-util"] }
 
 # Database
-sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -36,7 +36,7 @@ hex = "0.4"
 tantivy = "0.22"
 
 # Image processing
-image = "0.25"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
