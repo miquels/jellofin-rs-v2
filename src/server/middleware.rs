@@ -69,12 +69,6 @@ pub async fn log_request_middleware(
                 "POST request"
             );
         }
-    } else if !debug_logs {
-        info!(
-            method = %method,
-            url = %uri,
-            "Request started"
-        );
     }
 
     // Reconstruct request with body
@@ -135,7 +129,7 @@ pub async fn log_request_middleware(
                 status = status,
                 length = length,
                 res_body = %body_str,
-                "HTTP request (Logged)"
+                "HTTP response (Logged)"
             );
         } else {
             info!(
@@ -143,7 +137,7 @@ pub async fn log_request_middleware(
                 url = %uri,
                 status = status,
                 length = length,
-                "HTTP request"
+                "HTTP response"
             );
         }
 
@@ -155,7 +149,7 @@ pub async fn log_request_middleware(
             url = %uri,
             status = status,
             type = %content_type,
-            "HTTP request (Streamed)"
+            "HTTP response (Streamed)"
         );
         response
     }
