@@ -260,7 +260,7 @@ pub fn make_sort_name(name: &str) -> String {
 fn remove_year_suffix(name: &str) -> String {
     static IS_YEAR: OnceLock<Regex> = OnceLock::new();
     let regex = IS_YEAR.get_or_init(|| Regex::new(r"\s*\(\d{4}\)\s*$").unwrap());
-    
+
     if let Some(mat) = regex.find(name) {
         name[..mat.start()].trim().to_string()
     } else {

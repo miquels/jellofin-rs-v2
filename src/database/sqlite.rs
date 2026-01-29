@@ -22,8 +22,7 @@ impl SqliteRepository {
     /// Create a new SQLite repository
     pub async fn new(filename: &str) -> Result<Self> {
         // Create connection options
-        let options = SqliteConnectOptions::from_str(filename)?
-            .create_if_missing(true);
+        let options = SqliteConnectOptions::from_str(filename)?.create_if_missing(true);
 
         // Create connection pool
         let pool = SqlitePoolOptions::new()
@@ -171,8 +170,7 @@ impl SqliteRepository {
                     play_count: row.4,
                     played: row.5,
                     favorite: row.6,
-                    timestamp: chrono::DateTime::from_timestamp(row.7, 0)
-                        .unwrap_or_default(),
+                    timestamp: chrono::DateTime::from_timestamp(row.7, 0).unwrap_or_default(),
                 },
             );
         }
@@ -193,43 +191,39 @@ impl Repository for SqliteRepository {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
             loop {
                 interval.tick().await;
-                
+
                 // Sync access tokens
                 let tokens = access_token_cache.lock().await;
                 for token in tokens.values() {
-                    let _ = sqlx::query(
-                        "INSERT OR REPLACE INTO access_tokens VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-                    )
-                    .bind(&token.token)
-                    .bind(&token.user_id)
-                    .bind(&token.device_id)
-                    .bind(&token.device_name)
-                    .bind(&token.application_name)
-                    .bind(&token.application_version)
-                    .bind(&token.remote_address)
-                    .bind(token.created.timestamp())
-                    .bind(token.last_used.timestamp())
-                    .execute(&pool)
-                    .await;
+                    let _ = sqlx::query("INSERT OR REPLACE INTO access_tokens VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+                        .bind(&token.token)
+                        .bind(&token.user_id)
+                        .bind(&token.device_id)
+                        .bind(&token.device_name)
+                        .bind(&token.application_name)
+                        .bind(&token.application_version)
+                        .bind(&token.remote_address)
+                        .bind(token.created.timestamp())
+                        .bind(token.last_used.timestamp())
+                        .execute(&pool)
+                        .await;
                 }
                 drop(tokens);
 
                 // Sync user data
                 let user_data = user_data_cache.lock().await;
                 for ((user_id, item_id), data) in user_data.iter() {
-                    let _ = sqlx::query(
-                        "INSERT OR REPLACE INTO user_data VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-                    )
-                    .bind(user_id)
-                    .bind(item_id)
-                    .bind(data.position)
-                    .bind(data.played_percentage)
-                    .bind(data.play_count)
-                    .bind(data.played)
-                    .bind(data.favorite)
-                    .bind(data.timestamp.timestamp())
-                    .execute(&pool)
-                    .await;
+                    let _ = sqlx::query("INSERT OR REPLACE INTO user_data VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+                        .bind(user_id)
+                        .bind(item_id)
+                        .bind(data.position)
+                        .bind(data.played_percentage)
+                        .bind(data.play_count)
+                        .bind(data.played)
+                        .bind(data.favorite)
+                        .bind(data.timestamp.timestamp())
+                        .execute(&pool)
+                        .await;
                 }
             }
         });
@@ -240,7 +234,7 @@ impl Repository for SqliteRepository {
 impl UserRepo for SqliteRepository {
     async fn get_user(&self, username: &str) -> Result<User> {
         let row = sqlx::query_as::<_, (String, String, String, i64, i64, i64)>(
-            "SELECT id, username, password, created, last_login, last_used FROM users WHERE username = ?"
+            "SELECT id, username, password, created, last_login, last_used FROM users WHERE username = ?",
         )
         .bind(username)
         .fetch_optional(&self.pool)
@@ -259,7 +253,7 @@ impl UserRepo for SqliteRepository {
 
     async fn get_user_by_id(&self, user_id: &str) -> Result<User> {
         let row = sqlx::query_as::<_, (String, String, String, i64, i64, i64)>(
-            "SELECT id, username, password, created, last_login, last_used FROM users WHERE id = ?"
+            "SELECT id, username, password, created, last_login, last_used FROM users WHERE id = ?",
         )
         .bind(user_id)
         .fetch_optional(&self.pool)
@@ -277,17 +271,15 @@ impl UserRepo for SqliteRepository {
     }
 
     async fn upsert_user(&self, user: &User) -> Result<()> {
-        sqlx::query(
-            "INSERT OR REPLACE INTO users VALUES (?, ?, ?, ?, ?, ?)"
-        )
-        .bind(&user.id)
-        .bind(&user.username)
-        .bind(&user.password)
-        .bind(user.created.timestamp())
-        .bind(user.last_login.timestamp())
-        .bind(user.last_used.timestamp())
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT OR REPLACE INTO users VALUES (?, ?, ?, ?, ?, ?)")
+            .bind(&user.id)
+            .bind(&user.username)
+            .bind(&user.password)
+            .bind(user.created.timestamp())
+            .bind(user.last_login.timestamp())
+            .bind(user.last_used.timestamp())
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }
@@ -379,7 +371,7 @@ impl AccessTokenRepo for SqliteRepository {
 impl ItemRepo for SqliteRepository {
     async fn db_load_item(&self, item: &mut Item) -> Result<()> {
         let row = sqlx::query_as::<_, (String, String, i32, String, f32, i32, i64, i64, i64)>(
-            "SELECT id, name, votes, genre, rating, year, nfo_time, first_video, last_video FROM items WHERE id = ?"
+            "SELECT id, name, votes, genre, rating, year, nfo_time, first_video, last_video FROM items WHERE id = ?",
         )
         .bind(&item.id)
         .fetch_optional(&self.pool)
@@ -404,7 +396,7 @@ impl UserDataRepo for SqliteRepository {
     async fn get_user_data(&self, user_id: &str, item_id: &str) -> Result<UserData> {
         let cache = self.user_data_cache.lock().await;
         let key = (user_id.to_string(), item_id.to_string());
-        
+
         if let Some(data) = cache.get(&key) {
             return Ok(data.clone());
         }
@@ -435,9 +427,7 @@ impl UserDataRepo for SqliteRepository {
         let cache = self.user_data_cache.lock().await;
         let mut items: Vec<_> = cache
             .iter()
-            .filter(|((uid, _), data)| {
-                uid == user_id && (include_fully_watched || !data.played)
-            })
+            .filter(|((uid, _), data)| uid == user_id && (include_fully_watched || !data.played))
             .collect();
 
         items.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
@@ -457,7 +447,7 @@ impl UserDataRepo for SqliteRepository {
 impl PlaylistRepo for SqliteRepository {
     async fn create_playlist(&self, playlist: &Playlist) -> Result<String> {
         let item_ids_json = serde_json::to_string(&playlist.item_ids)?;
-        
+
         sqlx::query("INSERT INTO playlists VALUES (?, ?, ?, ?)")
             .bind(&playlist.id)
             .bind(&playlist.user_id)
@@ -470,19 +460,17 @@ impl PlaylistRepo for SqliteRepository {
     }
 
     async fn get_playlists(&self, user_id: &str) -> Result<Vec<String>> {
-        let rows = sqlx::query_as::<_, (String,)>(
-            "SELECT id FROM playlists WHERE user_id = ?"
-        )
-        .bind(user_id)
-        .fetch_all(&self.pool)
-        .await?;
+        let rows = sqlx::query_as::<_, (String,)>("SELECT id FROM playlists WHERE user_id = ?")
+            .bind(user_id)
+            .fetch_all(&self.pool)
+            .await?;
 
         Ok(rows.into_iter().map(|r| r.0).collect())
     }
 
     async fn get_playlist(&self, user_id: &str, playlist_id: &str) -> Result<Playlist> {
         let row = sqlx::query_as::<_, (String, String, String, String)>(
-            "SELECT id, user_id, name, item_ids FROM playlists WHERE id = ? AND user_id = ?"
+            "SELECT id, user_id, name, item_ids FROM playlists WHERE id = ? AND user_id = ?",
         )
         .bind(playlist_id)
         .bind(user_id)
@@ -501,13 +489,11 @@ impl PlaylistRepo for SqliteRepository {
     }
 
     async fn add_items_to_playlist(&self, _user_id: &str, playlist_id: &str, item_ids: &[String]) -> Result<()> {
-        let row = sqlx::query_as::<_, (String,)>(
-            "SELECT item_ids FROM playlists WHERE id = ?"
-        )
-        .bind(playlist_id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or(DatabaseError::NotFound)?;
+        let row = sqlx::query_as::<_, (String,)>("SELECT item_ids FROM playlists WHERE id = ?")
+            .bind(playlist_id)
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or(DatabaseError::NotFound)?;
 
         let mut existing_ids: Vec<String> = serde_json::from_str(&row.0)?;
         existing_ids.extend_from_slice(item_ids);
@@ -523,13 +509,11 @@ impl PlaylistRepo for SqliteRepository {
     }
 
     async fn delete_items_from_playlist(&self, playlist_id: &str, item_ids: &[String]) -> Result<()> {
-        let row = sqlx::query_as::<_, (String,)>(
-            "SELECT item_ids FROM playlists WHERE id = ?"
-        )
-        .bind(playlist_id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or(DatabaseError::NotFound)?;
+        let row = sqlx::query_as::<_, (String,)>("SELECT item_ids FROM playlists WHERE id = ?")
+            .bind(playlist_id)
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or(DatabaseError::NotFound)?;
 
         let mut existing_ids: Vec<String> = serde_json::from_str(&row.0)?;
         existing_ids.retain(|id| !item_ids.contains(id));
@@ -545,16 +529,14 @@ impl PlaylistRepo for SqliteRepository {
     }
 
     async fn move_playlist_item(&self, playlist_id: &str, item_id: &str, new_index: i32) -> Result<()> {
-        let row = sqlx::query_as::<_, (String,)>(
-            "SELECT item_ids FROM playlists WHERE id = ?"
-        )
-        .bind(playlist_id)
-        .fetch_optional(&self.pool)
-        .await?
-        .ok_or(DatabaseError::NotFound)?;
+        let row = sqlx::query_as::<_, (String,)>("SELECT item_ids FROM playlists WHERE id = ?")
+            .bind(playlist_id)
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or(DatabaseError::NotFound)?;
 
         let mut existing_ids: Vec<String> = serde_json::from_str(&row.0)?;
-        
+
         if let Some(old_index) = existing_ids.iter().position(|id| id == item_id) {
             existing_ids.remove(old_index);
             let new_idx = (new_index as usize).min(existing_ids.len());

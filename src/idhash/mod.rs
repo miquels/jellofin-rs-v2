@@ -1,4 +1,4 @@
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 
 /// Hash a string with sha256.
 /// Then take the first 119 bits, and convert that to base62.
@@ -11,10 +11,22 @@ pub fn id_hash(name: &str) -> String {
 
     // Create 128 bit integer from the first 16 bytes of the hash.
     let mut num128 = u128::from_be_bytes([
-        hash256[0], hash256[1], hash256[2], hash256[3],
-        hash256[4], hash256[5], hash256[6], hash256[7],
-        hash256[8], hash256[9], hash256[10], hash256[11],
-        hash256[12], hash256[13], hash256[14], hash256[15],
+        hash256[0],
+        hash256[1],
+        hash256[2],
+        hash256[3],
+        hash256[4],
+        hash256[5],
+        hash256[6],
+        hash256[7],
+        hash256[8],
+        hash256[9],
+        hash256[10],
+        hash256[11],
+        hash256[12],
+        hash256[13],
+        hash256[14],
+        hash256[15],
     ]);
 
     // Use only the first 119 bits.
@@ -27,11 +39,11 @@ pub fn id_hash(name: &str) -> String {
         num128 /= 62;
 
         let c = if m < 10 {
-            m + 48  // '0' to '9'
+            m + 48 // '0' to '9'
         } else if m < 36 {
-            m + 65 - 10  // 'A' to 'Z'
+            m + 65 - 10 // 'A' to 'Z'
         } else {
-            m + 97 - 36  // 'a' to 'z'
+            m + 97 - 36 // 'a' to 'z'
         };
         id.push(c as char);
     }

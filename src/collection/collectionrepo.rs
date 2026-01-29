@@ -37,10 +37,7 @@ impl CollectionRepo {
 
         info!(
             "Adding collection {}, id: {}, type: {}, directory: {}",
-            name,
-            collection_id,
-            collection_type,
-            directory
+            name, collection_id, collection_type, directory
         );
 
         let collection = Collection::new(collection_id, name, ct, directory, hls_server);
@@ -62,12 +59,12 @@ impl CollectionRepo {
     /// Background task that continuously scans for content changes
     pub fn background(&self) {
         let _collections = Arc::clone(&self.collections);
-        
+
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(Duration::from_secs(300)).await; // 5 minutes
                 info!("Background scan starting...");
-                
+
                 // TODO: Implement update_collections
                 // For now, just log
                 info!("Background scan complete");
@@ -78,7 +75,7 @@ impl CollectionRepo {
     /// Update collections with latest content from filesystem
     fn update_collections(&self, scan_interval: Duration) {
         let mut updated_collections = (**self.collections.load()).clone();
-        
+
         for collection in &mut updated_collections {
             match collection.collection_type {
                 CollectionType::Movies => {
@@ -89,7 +86,7 @@ impl CollectionRepo {
                 }
             }
         }
-        
+
         self.collections.store(Arc::new(updated_collections));
     }
 
@@ -100,17 +97,13 @@ impl CollectionRepo {
 
     /// Get a collection by ID
     pub fn get_collection(&self, collection_id: &str) -> Option<Collection> {
-        self.collections
-            .load()
-            .iter()
-            .find(|c| c.id == collection_id)
-            .cloned()
+        self.collections.load().iter().find(|c| c.id == collection_id).cloned()
     }
 
     /// Get an item by collection ID and item ID
     pub fn get_item(&self, collection_id: &str, item_id: &str) -> Option<Item> {
         let collection = self.get_collection(collection_id)?;
-        
+
         for item in &collection.items {
             match item {
                 Item::Movie(movie) if movie.id == item_id => {
@@ -142,7 +135,7 @@ impl CollectionRepo {
                 _ => {}
             }
         }
-        
+
         None
     }
 
@@ -158,7 +151,14 @@ impl CollectionRepo {
     }
 
     /// Get a season by ID across all collections
-    pub fn get_season_by_id(&self, season_id: &str) -> Option<(Collection, crate::collection::item::Show, crate::collection::item::Season)> {
+    pub fn get_season_by_id(
+        &self,
+        season_id: &str,
+    ) -> Option<(
+        Collection,
+        crate::collection::item::Show,
+        crate::collection::item::Season,
+    )> {
         let collections = self.collections.load();
         for collection in collections.iter() {
             for item in &collection.items {
@@ -175,7 +175,15 @@ impl CollectionRepo {
     }
 
     /// Get an episode by ID across all collections
-    pub fn get_episode_by_id(&self, episode_id: &str) -> Option<(Collection, crate::collection::item::Show, crate::collection::item::Season, crate::collection::item::Episode)> {
+    pub fn get_episode_by_id(
+        &self,
+        episode_id: &str,
+    ) -> Option<(
+        Collection,
+        crate::collection::item::Show,
+        crate::collection::item::Season,
+        crate::collection::item::Episode,
+    )> {
         let collections = self.collections.load();
         for collection in collections.iter() {
             for item in &collection.items {
@@ -235,7 +243,9 @@ impl CollectionRepo {
                         ep_idx: ei,
                     });
 
-                    if season.season_no > entry.season_no || (season.season_no == entry.season_no && episode.episode_no > entry.episode_no) {
+                    if season.season_no > entry.season_no
+                        || (season.season_no == entry.season_no && episode.episode_no > entry.episode_no)
+                    {
                         entry.season_no = season.season_no;
                         entry.episode_no = episode.episode_no;
                         entry.season_idx = si;
@@ -247,7 +257,7 @@ impl CollectionRepo {
 
         let mut next_up_ids = Vec::new();
         let _collections = self.collections.load();
-        
+
         for entry in show_map.values() {
             // Need to find the show again to get current data
             if let Some((_, Item::Show(show))) = self.get_item_by_id(&entry.show_id) {
@@ -255,7 +265,9 @@ impl CollectionRepo {
                     let season = &show.seasons[entry.season_idx];
                     if entry.ep_idx + 1 < season.episodes.len() {
                         next_up_ids.push(season.episodes[entry.ep_idx + 1].id.clone());
-                    } else if entry.season_idx + 1 < show.seasons.len() && !show.seasons[entry.season_idx + 1].episodes.is_empty() {
+                    } else if entry.season_idx + 1 < show.seasons.len()
+                        && !show.seasons[entry.season_idx + 1].episodes.is_empty()
+                    {
                         next_up_ids.push(show.seasons[entry.season_idx + 1].episodes[0].id.clone());
                     }
                 }
@@ -333,10 +345,18 @@ impl CollectionRepo {
             movie_count += details.movie_count;
             show_count += details.show_count;
             episode_count += details.episode_count;
-            for g in details.genres { genres.insert(g); }
-            for s in details.studios { studios.insert(s); }
-            for r in details.official_ratings { official_ratings.insert(r); }
-            for y in details.years { years.insert(y); }
+            for g in details.genres {
+                genres.insert(g);
+            }
+            for s in details.studios {
+                studios.insert(s);
+            }
+            for r in details.official_ratings {
+                official_ratings.insert(r);
+            }
+            for y in details.years {
+                years.insert(y);
+            }
         }
 
         super::collection::CollectionDetails {
@@ -371,7 +391,7 @@ mod tests {
     #[test]
     fn test_add_collection() {
         let repo = CollectionRepo::new();
-        
+
         let result = repo.add_collection(
             "Test Movies".to_string(),
             None,
@@ -379,7 +399,7 @@ mod tests {
             "/test/movies".to_string(),
             "".to_string(),
         );
-        
+
         assert!(result.is_ok());
         assert_eq!(repo.get_collections().len(), 1);
     }
@@ -387,30 +407,25 @@ mod tests {
     #[test]
     fn test_add_invalid_collection_type() {
         let repo = CollectionRepo::new();
-        
-        let result = repo.add_collection(
-            "Test".to_string(),
-            None,
-            "invalid",
-            "/test".to_string(),
-            "".to_string(),
-        );
-        
+
+        let result = repo.add_collection("Test".to_string(), None, "invalid", "/test".to_string(), "".to_string());
+
         assert!(result.is_err());
     }
 
     #[test]
     fn test_get_collection() {
         let repo = CollectionRepo::new();
-        
+
         repo.add_collection(
             "Test Movies".to_string(),
             Some("test-id".to_string()),
             "movies",
             "/test/movies".to_string(),
             "".to_string(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let collection = repo.get_collection("test-id");
         assert!(collection.is_some());
         assert_eq!(collection.unwrap().name, "Test Movies");

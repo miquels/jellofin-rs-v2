@@ -26,19 +26,19 @@ impl Config {
     pub fn app_dir(&self) -> Option<String> {
         self.appdir.clone()
     }
-    
+
     pub fn cache_dir(&self) -> Option<String> {
         self.cachedir.clone()
     }
-    
+
     pub fn server_id(&self) -> Option<String> {
         self.jellyfin.server_id.clone()
     }
-    
+
     pub fn server_name(&self) -> Option<String> {
         self.jellyfin.server_name.clone()
     }
-    
+
     pub fn auto_register(&self) -> Option<bool> {
         Some(self.jellyfin.auto_register)
     }
@@ -110,12 +110,10 @@ fn default_image_quality() -> u32 {
 impl Config {
     /// Load configuration from YAML file
     pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
-        let contents = fs::read_to_string(path.as_ref())
-            .map_err(|e| ConfigError::Io(e))?;
-        
-        let config: Config = serde_yaml::from_str(&contents)
-            .map_err(|e| ConfigError::Parse(e))?;
-        
+        let contents = fs::read_to_string(path.as_ref()).map_err(|e| ConfigError::Io(e))?;
+
+        let config: Config = serde_yaml::from_str(&contents).map_err(|e| ConfigError::Parse(e))?;
+
         Ok(config)
     }
 }

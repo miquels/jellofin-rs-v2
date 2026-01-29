@@ -1,5 +1,5 @@
 use image::{DynamicImage, GenericImageView, ImageFormat};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::warn;
@@ -73,13 +73,10 @@ impl ImageResizer {
         hasher.update(source_path.to_string_lossy().as_bytes());
         hasher.update(format!("{:?}x{:?}q{:?}", width, height, quality).as_bytes());
         let hash = hasher.finalize();
-        
+
         // Get file extension
-        let ext = source_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("jpg");
-        
+        let ext = source_path.extension().and_then(|e| e.to_str()).unwrap_or("jpg");
+
         format!("{:x}.{}", hash, ext)
     }
 
@@ -94,20 +91,16 @@ impl ImageResizer {
     ) -> Result<()> {
         // Load image
         let img = image::open(source_path)?;
-        
+
         // Calculate dimensions
         let (target_width, target_height) = self.calculate_dimensions(&img, width, height);
-        
+
         // Resize
-        let resized = img.resize(
-            target_width,
-            target_height,
-            image::imageops::FilterType::Lanczos3,
-        );
-        
+        let resized = img.resize(target_width, target_height, image::imageops::FilterType::Lanczos3);
+
         // Determine format
         let format = self.detect_format(source_path)?;
-        
+
         // Save with quality
         match format {
             ImageFormat::Jpeg => {
@@ -126,19 +119,14 @@ impl ImageResizer {
                 resized.save(cache_path)?;
             }
         }
-        
+
         Ok(())
     }
 
     /// Calculate target dimensions maintaining aspect ratio
-    fn calculate_dimensions(
-        &self,
-        img: &DynamicImage,
-        width: Option<u32>,
-        height: Option<u32>,
-    ) -> (u32, u32) {
+    fn calculate_dimensions(&self, img: &DynamicImage, width: Option<u32>, height: Option<u32>) -> (u32, u32) {
         let (orig_width, orig_height) = img.dimensions();
-        
+
         match (width, height) {
             (Some(w), Some(h)) => (w, h),
             (Some(w), None) => {
@@ -155,12 +143,8 @@ impl ImageResizer {
 
     /// Detect image format from file extension
     fn detect_format(&self, path: &Path) -> Result<ImageFormat> {
-        let ext = path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("")
-            .to_lowercase();
-        
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+
         match ext.as_str() {
             "jpg" | "jpeg" => Ok(ImageFormat::Jpeg),
             "png" => Ok(ImageFormat::Png),
@@ -203,15 +187,15 @@ mod tests {
     fn test_generate_cache_key() {
         let temp_dir = env::temp_dir().join("test_cache");
         let resizer = ImageResizer::new(temp_dir.clone()).unwrap();
-        
+
         let path = Path::new("/test/image.jpg");
         let key1 = resizer.generate_cache_key(path, Some(100), Some(100), Some(90));
         let key2 = resizer.generate_cache_key(path, Some(100), Some(100), Some(90));
         let key3 = resizer.generate_cache_key(path, Some(200), Some(200), Some(90));
-        
+
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);
-        
+
         let _ = fs::remove_dir_all(temp_dir);
     }
 
@@ -219,25 +203,24 @@ mod tests {
     fn test_calculate_dimensions() {
         let temp_dir = env::temp_dir().join("test_dims");
         let resizer = ImageResizer::new(temp_dir.clone()).unwrap();
-        
+
         let img = DynamicImage::new_rgb8(800, 600);
-        
+
         // Width only
         let (w, h) = resizer.calculate_dimensions(&img, Some(400), None);
         assert_eq!(w, 400);
         assert_eq!(h, 300);
-        
+
         // Height only
         let (w, h) = resizer.calculate_dimensions(&img, None, Some(300));
         assert_eq!(w, 400);
         assert_eq!(h, 300);
-        
+
         // Both specified
         let (w, h) = resizer.calculate_dimensions(&img, Some(100), Some(100));
         assert_eq!(w, 100);
         assert_eq!(h, 100);
-        
+
         let _ = fs::remove_dir_all(temp_dir);
     }
 }
-

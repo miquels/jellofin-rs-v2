@@ -4,24 +4,21 @@ mod middleware;
 pub use config::Config;
 
 use axum::{
-    Router,
-    routing::{get, post},
     response::IntoResponse,
+    routing::{get, post},
+    Router,
 };
 use std::net::SocketAddr;
-use std::sync::Arc;
 use std::path::PathBuf;
-use tower_http::{
-    trace::TraceLayer,
-    compression::CompressionLayer,
-};
+use std::sync::Arc;
+use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 use tracing::info;
 
 use crate::collection::CollectionRepo;
 use crate::database::sqlite::SqliteRepository;
 use crate::imageresize::ImageResizer;
-use crate::notflix::NotflixState;
 use crate::jellyfin::{JellyfinAuthState, JellyfinState};
+use crate::notflix::NotflixState;
 
 /// Application state shared across all handlers
 #[derive(Clone)]
@@ -38,7 +35,7 @@ pub async fn run(config_path: String) -> Result<(), Box<dyn std::error::Error>> 
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
 
@@ -49,7 +46,11 @@ pub async fn run(config_path: String) -> Result<(), Box<dyn std::error::Error>> 
     info!("Configuration loaded successfully");
 
     // Initialize database
-    let db_path = config.database.path.clone().unwrap_or_else(|| "jellofin.db".to_string());
+    let db_path = config
+        .database
+        .path
+        .clone()
+        .unwrap_or_else(|| "jellofin.db".to_string());
     let repo = Arc::new(SqliteRepository::new(&db_path).await?);
     info!("Database initialized at {}", db_path);
 
@@ -79,10 +80,7 @@ pub async fn run(config_path: String) -> Result<(), Box<dyn std::error::Error>> 
     let app = build_router(state.clone());
 
     // Determine bind address
-    let addr: SocketAddr = format!("{}:{}", 
-        state.config.listen.address, 
-        state.config.listen.port
-    ).parse()?;
+    let addr: SocketAddr = format!("{}:{}", state.config.listen.address, state.config.listen.port).parse()?;
 
     info!("Starting server on {}", addr);
 
@@ -101,7 +99,7 @@ pub async fn run(config_path: String) -> Result<(), Box<dyn std::error::Error>> 
 /// Build the axum router with all routes and middleware
 fn build_router(state: AppState) -> Router {
     use axum::middleware as mw;
-    
+
     // Create Notflix state
     let notflix_state = NotflixState {
         collections: state.collections.clone(),
@@ -110,7 +108,10 @@ fn build_router(state: AppState) -> Router {
     };
 
     // Create Jellyfin auth state
-    let server_id = state.config.server_id().unwrap_or_else(|| "jellofin-rs-server".to_string());
+    let server_id = state
+        .config
+        .server_id()
+        .unwrap_or_else(|| "jellofin-rs-server".to_string());
     let jellyfin_auth_state = JellyfinAuthState {
         repo: state.repo.clone(),
         server_id: server_id.clone(),
@@ -154,102 +155,145 @@ fn build_router(state: AppState) -> Router {
         .route("/System/Ping", get(crate::jellyfin::system_ping))
         .route("/health", get(crate::jellyfin::health))
         // Protected routes
-        .nest("/", Router::new()
-            .route("/System/Info", get(crate::jellyfin::system_info))
-            .route("/Users", get(crate::jellyfin::users_all))
-            .route("/Users/Me", get(crate::jellyfin::users_me))
-            .route("/Users/:id", get(crate::jellyfin::users_by_id))
-            .route("/Users/:id/Views", get(crate::jellyfin::user_views))
-            .route("/Users/Public", get(crate::jellyfin::users_public))
-            .route("/Plugins", get(crate::jellyfin::plugins))
-            .route("/QuickConnect/Authorize", post(crate::jellyfin::quick_connect_authorize))
-            
-            // Item routes
-            .route("/Items", get(crate::jellyfin::items_query))
-            .route("/Items/Latest", get(crate::jellyfin::items_latest))
-            .route("/Items/Counts", get(crate::jellyfin::items_counts))
-            .route("/Items/Suggestions", get(crate::jellyfin::items_suggestions))
-            .route("/Items/Resume", get(crate::jellyfin::items_resume))
-            .route("/Items/:item", get(crate::jellyfin::item_details))
-            .route("/Items/:item/Similar", get(crate::jellyfin::items_similar))
-            .route("/Items/:item/Ancestors", get(crate::jellyfin::item_ancestors))
-            
-            // Search / Hints
-            .route("/Search/Hints", get(crate::jellyfin::search_hints))
-            
-            // Show routes
-            .route("/Shows/NextUp", get(crate::jellyfin::shows_next_up))
-            .route("/Shows/:id/Seasons", get(crate::jellyfin::show_seasons))
-            .route("/Shows/:id/Episodes", get(crate::jellyfin::show_episodes))
-            
-            // Metadata routes
-            .route("/Genres", get(crate::jellyfin::genres_all))
-            .route("/Genres/:name", get(crate::jellyfin::genre_details))
-            .route("/Studios", get(crate::jellyfin::studios_all))
-            .route("/Studios/:name", get(crate::jellyfin::studio_details))
-
-            // Movie routes
-            .route("/Movies/Recommendations", get(crate::jellyfin::movies_recommendations))
-
-            .route("/Persons", get(crate::jellyfin::persons_all))
-            .route("/Persons/:name", get(crate::jellyfin::person_details))
-            
-            // Library routes
-            .route("/Library/VirtualFolders", get(crate::jellyfin::library_virtual_folders))
-            
-            // Localization routes
-            .route("/Localization/Cultures", get(crate::jellyfin::localization_cultures))
-            .route("/Localization/Countries", get(crate::jellyfin::localization_countries))
-            .route("/Localization/Options", get(crate::jellyfin::localization_options))
-            .route("/Localization/ParentalRatings", get(crate::jellyfin::localization_parental_ratings))
-            
-            // User-prefixed routes
-            .route("/Users/:user/Items", get(crate::jellyfin::items_query))
-            .route("/Users/:user/Items/Latest", get(crate::jellyfin::items_latest))
-            .route("/Users/:user/Items/Resume", get(crate::jellyfin::items_resume))
-            .route("/Users/:user/Items/Suggestions", get(crate::jellyfin::items_suggestions))
-            .route("/Users/:user/Items/:item", get(crate::jellyfin::item_details))
-            .route("/Users/:user/Items/:item/Similar", get(crate::jellyfin::items_similar))
-            .route("/Users/:user/Items/Filters", get(crate::jellyfin::item_filters))
-            .route("/Users/:user/Items/Filters2", get(crate::jellyfin::item_filters2))
-            
-            // User Data / Playback routes
-            .route("/Sessions/Playing", post(crate::jellyfin::sessions_playing))
-            .route("/Sessions/Playing/Progress", post(crate::jellyfin::sessions_playing_progress))
-            .route("/Sessions/Playing/Stopped", post(crate::jellyfin::sessions_playing_stopped))
-            
-            .route("/UserItems/:item/UserData", get(crate::jellyfin::users_item_userdata_simple))
-            .route("/Users/:user/Items/:item/UserData", get(crate::jellyfin::users_item_userdata))
-            
-            .route("/UserPlayedItems/:item", post(crate::jellyfin::users_played_items_post_simple).delete(crate::jellyfin::users_played_items_delete_simple))
-            .route("/Users/:user/PlayedItems/:item", post(crate::jellyfin::users_played_items_post).delete(crate::jellyfin::users_played_items_delete))
-            
-            .route("/UserFavoriteItems/:item", post(crate::jellyfin::user_favorite_items_post_simple).delete(crate::jellyfin::user_favorite_items_delete_simple))
-            .route("/Users/:user/FavoriteItems/:item", post(crate::jellyfin::user_favorite_items_post).delete(crate::jellyfin::user_favorite_items_delete))
-            
-            // Devices
-            .route("/Devices", get(crate::jellyfin::devices_get).delete(crate::jellyfin::devices_delete))
-            .route("/Devices/Info", get(crate::jellyfin::devices_info))
-            .route("/Devices/Options", get(crate::jellyfin::devices_options))
-            
-            // Sessions
-            .route("/Sessions", get(crate::jellyfin::sessions))
-            .route("/Sessions/Capabilities", post(crate::jellyfin::sessions_capabilities))
-            .route("/Sessions/Capabilities/Full", post(crate::jellyfin::sessions_capabilities_full))
-            
-            // Playlists
-            .route("/Playlists", post(crate::jellyfin::create_playlist))
-            .route("/Playlists/:playlist", get(crate::jellyfin::get_playlist).post(crate::jellyfin::update_playlist))
-            .route("/Playlists/:playlist/Items", get(crate::jellyfin::get_playlist_items).post(crate::jellyfin::add_playlist_items).delete(crate::jellyfin::delete_playlist_items))
-            .route("/Playlists/:playlist/Items/", post(crate::jellyfin::add_playlist_items))
-            .route("/Playlists/:playlist/Items/:item/Move/:index", get(crate::jellyfin::move_playlist_item))
-            .route("/Playlists/:playlist/Users", get(crate::jellyfin::get_playlist_all_users))
-            .route("/Playlists/:playlist/Users/:user", get(crate::jellyfin::get_playlist_users))
-            
-            .layer(mw::from_fn_with_state(
-                jellyfin_auth_state,
-                crate::jellyfin::auth_middleware
-            ))
+        .nest(
+            "/",
+            Router::new()
+                .route("/System/Info", get(crate::jellyfin::system_info))
+                .route("/Users", get(crate::jellyfin::users_all))
+                .route("/Users/Me", get(crate::jellyfin::users_me))
+                .route("/Users/:id", get(crate::jellyfin::users_by_id))
+                .route("/Users/:id/Views", get(crate::jellyfin::user_views))
+                .route("/Users/Public", get(crate::jellyfin::users_public))
+                .route("/Plugins", get(crate::jellyfin::plugins))
+                .route(
+                    "/QuickConnect/Authorize",
+                    post(crate::jellyfin::quick_connect_authorize),
+                )
+                // Item routes
+                .route("/Items", get(crate::jellyfin::items_query))
+                .route("/Items/Latest", get(crate::jellyfin::items_latest))
+                .route("/Items/Counts", get(crate::jellyfin::items_counts))
+                .route("/Items/Suggestions", get(crate::jellyfin::items_suggestions))
+                .route("/Items/Resume", get(crate::jellyfin::items_resume))
+                .route("/Items/:item", get(crate::jellyfin::item_details))
+                .route("/Items/:item/Similar", get(crate::jellyfin::items_similar))
+                .route("/Items/:item/Ancestors", get(crate::jellyfin::item_ancestors))
+                // Search / Hints
+                .route("/Search/Hints", get(crate::jellyfin::search_hints))
+                // Show routes
+                .route("/Shows/NextUp", get(crate::jellyfin::shows_next_up))
+                .route("/Shows/:id/Seasons", get(crate::jellyfin::show_seasons))
+                .route("/Shows/:id/Episodes", get(crate::jellyfin::show_episodes))
+                // Metadata routes
+                .route("/Genres", get(crate::jellyfin::genres_all))
+                .route("/Genres/:name", get(crate::jellyfin::genre_details))
+                .route("/Studios", get(crate::jellyfin::studios_all))
+                .route("/Studios/:name", get(crate::jellyfin::studio_details))
+                // Movie routes
+                .route("/Movies/Recommendations", get(crate::jellyfin::movies_recommendations))
+                .route("/Persons", get(crate::jellyfin::persons_all))
+                .route("/Persons/:name", get(crate::jellyfin::person_details))
+                // Library routes
+                .route("/Library/VirtualFolders", get(crate::jellyfin::library_virtual_folders))
+                // Localization routes
+                .route("/Localization/Cultures", get(crate::jellyfin::localization_cultures))
+                .route("/Localization/Countries", get(crate::jellyfin::localization_countries))
+                .route("/Localization/Options", get(crate::jellyfin::localization_options))
+                .route(
+                    "/Localization/ParentalRatings",
+                    get(crate::jellyfin::localization_parental_ratings),
+                )
+                // User-prefixed routes
+                .route("/Users/:user/Items", get(crate::jellyfin::items_query))
+                .route("/Users/:user/Items/Latest", get(crate::jellyfin::items_latest))
+                .route("/Users/:user/Items/Resume", get(crate::jellyfin::items_resume))
+                .route(
+                    "/Users/:user/Items/Suggestions",
+                    get(crate::jellyfin::items_suggestions),
+                )
+                .route("/Users/:user/Items/:item", get(crate::jellyfin::item_details))
+                .route("/Users/:user/Items/:item/Similar", get(crate::jellyfin::items_similar))
+                .route("/Users/:user/Items/Filters", get(crate::jellyfin::item_filters))
+                .route("/Users/:user/Items/Filters2", get(crate::jellyfin::item_filters2))
+                // User Data / Playback routes
+                .route("/Sessions/Playing", post(crate::jellyfin::sessions_playing))
+                .route(
+                    "/Sessions/Playing/Progress",
+                    post(crate::jellyfin::sessions_playing_progress),
+                )
+                .route(
+                    "/Sessions/Playing/Stopped",
+                    post(crate::jellyfin::sessions_playing_stopped),
+                )
+                .route(
+                    "/UserItems/:item/UserData",
+                    get(crate::jellyfin::users_item_userdata_simple),
+                )
+                .route(
+                    "/Users/:user/Items/:item/UserData",
+                    get(crate::jellyfin::users_item_userdata),
+                )
+                .route(
+                    "/UserPlayedItems/:item",
+                    post(crate::jellyfin::users_played_items_post_simple)
+                        .delete(crate::jellyfin::users_played_items_delete_simple),
+                )
+                .route(
+                    "/Users/:user/PlayedItems/:item",
+                    post(crate::jellyfin::users_played_items_post).delete(crate::jellyfin::users_played_items_delete),
+                )
+                .route(
+                    "/UserFavoriteItems/:item",
+                    post(crate::jellyfin::user_favorite_items_post_simple)
+                        .delete(crate::jellyfin::user_favorite_items_delete_simple),
+                )
+                .route(
+                    "/Users/:user/FavoriteItems/:item",
+                    post(crate::jellyfin::user_favorite_items_post).delete(crate::jellyfin::user_favorite_items_delete),
+                )
+                // Devices
+                .route(
+                    "/Devices",
+                    get(crate::jellyfin::devices_get).delete(crate::jellyfin::devices_delete),
+                )
+                .route("/Devices/Info", get(crate::jellyfin::devices_info))
+                .route("/Devices/Options", get(crate::jellyfin::devices_options))
+                // Sessions
+                .route("/Sessions", get(crate::jellyfin::sessions))
+                .route("/Sessions/Capabilities", post(crate::jellyfin::sessions_capabilities))
+                .route(
+                    "/Sessions/Capabilities/Full",
+                    post(crate::jellyfin::sessions_capabilities_full),
+                )
+                // Playlists
+                .route("/Playlists", post(crate::jellyfin::create_playlist))
+                .route(
+                    "/Playlists/:playlist",
+                    get(crate::jellyfin::get_playlist).post(crate::jellyfin::update_playlist),
+                )
+                .route(
+                    "/Playlists/:playlist/Items",
+                    get(crate::jellyfin::get_playlist_items)
+                        .post(crate::jellyfin::add_playlist_items)
+                        .delete(crate::jellyfin::delete_playlist_items),
+                )
+                .route("/Playlists/:playlist/Items/", post(crate::jellyfin::add_playlist_items))
+                .route(
+                    "/Playlists/:playlist/Items/:item/Move/:index",
+                    get(crate::jellyfin::move_playlist_item),
+                )
+                .route(
+                    "/Playlists/:playlist/Users",
+                    get(crate::jellyfin::get_playlist_all_users),
+                )
+                .route(
+                    "/Playlists/:playlist/Users/:user",
+                    get(crate::jellyfin::get_playlist_users),
+                )
+                .layer(mw::from_fn_with_state(
+                    jellyfin_auth_state,
+                    crate::jellyfin::auth_middleware,
+                )),
         )
         .with_state(jellyfin_state);
 
@@ -275,7 +319,7 @@ async fn start_server(app: Router, addr: SocketAddr) -> Result<(), Box<dyn std::
 
 /// Start HTTPS server with TLS
 async fn start_tls_server(
-    app: Router, 
+    app: Router,
     addr: SocketAddr,
     cert_path: &str,
     key_path: &str,
@@ -283,14 +327,13 @@ async fn start_tls_server(
     use axum_server::tls_rustls::RustlsConfig;
 
     let config = RustlsConfig::from_pem_file(cert_path, key_path).await?;
-    
+
     axum_server::bind_rustls(addr, config)
         .serve(app.into_make_service())
         .await?;
-    
+
     Ok(())
 }
-
 
 /// Robots.txt handler
 async fn robots_handler() -> impl IntoResponse {

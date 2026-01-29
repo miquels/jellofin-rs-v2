@@ -15,7 +15,9 @@ pub trait PersonRepo {
 
 /// Database repo aggregates the repo interfaces.
 #[async_trait]
-pub trait Repository: UserRepo + AccessTokenRepo + ItemRepo + UserDataRepo + PlaylistRepo + PersonRepo + Send + Sync {
+pub trait Repository:
+    UserRepo + AccessTokenRepo + ItemRepo + UserDataRepo + PlaylistRepo + PersonRepo + Send + Sync
+{
     /// Start background jobs for the repository.
     fn start_background_jobs(&self);
 }
@@ -93,7 +95,7 @@ pub async fn new_repository(db_type: &str, config: &crate::server::Config) -> Re
             } else {
                 return Err(DatabaseError::NoConfiguration);
             };
-            
+
             let repo = SqliteRepository::new(&filename).await?;
             Ok(Box::new(repo))
         }

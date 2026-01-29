@@ -18,9 +18,7 @@ use super::types::*;
 static AUTH_HEADER_REGEX: OnceLock<Regex> = OnceLock::new();
 
 fn get_auth_regex() -> &'static Regex {
-    AUTH_HEADER_REGEX.get_or_init(|| {
-        Regex::new(r#"(\w+)="(.*?)""#).unwrap()
-    })
+    AUTH_HEADER_REGEX.get_or_init(|| Regex::new(r#"(\w+)="(.*?)""#).unwrap())
 }
 
 #[derive(Clone)]
@@ -120,13 +118,8 @@ pub async fn authenticate_by_name(
 }
 
 /// Create a new user
-async fn create_user(
-    repo: &Arc<dyn Repository>,
-    username: &str,
-    password: &str,
-) -> Result<model::User, String> {
-    let hashed_password = hash(password, DEFAULT_COST)
-        .map_err(|e| e.to_string())?;
+async fn create_user(repo: &Arc<dyn Repository>, username: &str, password: &str) -> Result<model::User, String> {
+    let hashed_password = hash(password, DEFAULT_COST).map_err(|e| e.to_string())?;
 
     let user = model::User {
         id: id_hash(username),
@@ -137,8 +130,7 @@ async fn create_user(
         last_used: chrono::Utc::now(),
     };
 
-    repo.upsert_user(&user).await
-        .map_err(|e| e.to_string())?;
+    repo.upsert_user(&user).await.map_err(|e| e.to_string())?;
 
     Ok(user)
 }
@@ -205,7 +197,10 @@ pub async fn auth_middleware(
     let token = token.unwrap();
 
     // Validate token
-    let access_token = state.repo.get_access_token(&token).await
+    let access_token = state
+        .repo
+        .get_access_token(&token)
+        .await
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     // Store access token in request extensions
@@ -239,14 +234,12 @@ fn extract_token(headers: &HeaderMap, request: &Request<axum::body::Body>) -> Op
 
     // Try query parameter ApiKey
     if let Some(query) = request.uri().query() {
-        let params: HashMap<String, String> = url::form_urlencoded::parse(query.as_bytes())
-            .into_owned()
-            .collect();
-        
+        let params: HashMap<String, String> = url::form_urlencoded::parse(query.as_bytes()).into_owned().collect();
+
         if let Some(api_key) = params.get("ApiKey") {
             return Some(api_key.clone());
         }
-        
+
         // Deprecated: api_key
         if let Some(api_key) = params.get("api_key") {
             return Some(api_key.clone());

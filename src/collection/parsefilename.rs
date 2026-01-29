@@ -56,7 +56,7 @@ pub fn parse_episode_name(filename: &str, season_hint: i32) -> Option<(i32, i32,
     if let Some(caps) = pat4.captures(filename) {
         let season: i32 = caps.get(1)?.as_str().parse().ok()?;
         let episode: i32 = caps.get(2)?.as_str().parse().ok()?;
-        
+
         if season_hint < 0 || season_hint == season {
             let name = format!("{:02}x{}", season, caps.get(2)?.as_str());
             return Some((season, episode, false, name));
