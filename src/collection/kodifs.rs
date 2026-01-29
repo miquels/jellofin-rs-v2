@@ -219,7 +219,7 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
                     double: is_double,
                     base_name: file_name.to_string(),
                     created: chrono::Utc::now(),
-                    file_name: format!("Season {:02}/{}", season_no, file_name),
+                    file_name: format!("{}/{}", path.file_name().unwrap_or_default().to_str().unwrap_or_default(), file_name),
                     file_size: std::fs::metadata(file_path).ok()?.len() as i64,
                     thumb: String::new(),          // TODO: Find thumbnail
                     metadata: {
