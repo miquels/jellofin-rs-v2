@@ -12,3 +12,5 @@ pub use item::{make_sort_name, Episode, Item, ItemRef, Movie, Season, Show, Subs
 pub use metadata::Metadata;
 pub use parsefilename::parse_episode_name;
 pub use search::{Search, SearchDocument};
+pub mod nfo;
+

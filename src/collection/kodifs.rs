@@ -91,7 +91,14 @@ fn scan_movie_directory(path: &Path, collection_root: &str) -> Option<Movie> {
         poster: find_image(path, "poster"),
         file_name: video_path.file_name()?.to_str()?.to_string(),
         file_size: std::fs::metadata(&video_file).ok()?.len() as i64,
-        metadata: Metadata::default(), // TODO: Parse NFO
+        metadata: {
+            let nfo_path = find_nfo(path, dir_name);
+            if !nfo_path.as_os_str().is_empty() {
+                super::nfo::parse_movie_nfo(&nfo_path).unwrap_or_default()
+            } else {
+                Metadata::default()
+            }
+        },
         srt_subs: Vec::new(),          // TODO: Find subtitles
         vtt_subs: Vec::new(),
     };
@@ -155,7 +162,14 @@ fn scan_show_directory(path: &Path, collection_root: &str) -> Option<Show> {
         season_all_poster: find_image(path, "season-all-poster"),
         file_name: String::new(),
         file_size: 0,
-        metadata: Metadata::default(), // TODO: Parse tvshow.nfo
+        metadata: {
+            let nfo_path = path.join("tvshow.nfo");
+            if nfo_path.exists() {
+                super::nfo::parse_show_nfo(&nfo_path).unwrap_or_default()
+            } else {
+                Metadata::default()
+            }
+        },
         srt_subs: Vec::new(),
         vtt_subs: Vec::new(),
         seasons,
@@ -204,7 +218,15 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
                     file_name: format!("Season {:02}/{}", season_no, file_name),
                     file_size: std::fs::metadata(file_path).ok()?.len() as i64,
                     thumb: String::new(),          // TODO: Find thumbnail
-                    metadata: Metadata::default(), // TODO: Parse episode NFO
+                    metadata: {
+                         // Find NFO for episode (basename.nfo)
+                         let nfo_path = file_path.with_extension("nfo");
+                         if nfo_path.exists() {
+                              super::nfo::parse_episode_nfo(&nfo_path).unwrap_or_default()
+                         } else {
+                              Metadata::default()
+                         }
+                    },
                     srt_subs: Vec::new(),
                     vtt_subs: Vec::new(),
                 };
@@ -273,6 +295,21 @@ fn find_image(path: &Path, name: &str) -> String {
     }
 
     String::new()
+}
+
+/// Find NFO file for a movie
+fn find_nfo(path: &Path, name: &str) -> PathBuf {
+    let nfo_path = path.join(format!("{}.nfo", name));
+    if nfo_path.exists() {
+        return nfo_path;
+    }
+
+    let movie_nfo = path.join("movie.nfo");
+    if movie_nfo.exists() {
+        return movie_nfo;
+    }
+
+    PathBuf::new()
 }
 
 /// Parse season number from directory name (e.g., "Season 01" -> 1)
