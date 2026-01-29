@@ -484,6 +484,21 @@ pub struct UserItemDataDto {
     pub item_id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct UpdatePlayStateRequest {
+    pub can_seek: bool,
+    pub repeat_mode: String,
+    pub position_ticks: i64,
+    pub play_session_id: Option<String>,
+    pub media_source_id: Option<String>,
+    pub item_id: String,
+    pub play_method: Option<String>,
+    pub is_muted: bool,
+    pub is_paused: bool,
+    pub event_name: Option<String>,
+}
+
 use std::collections::HashMap;
 
 impl Default for UserConfiguration {

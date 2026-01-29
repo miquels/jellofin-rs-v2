@@ -246,7 +246,7 @@ impl CollectionRepo {
         }
 
         let mut next_up_ids = Vec::new();
-        let collections = self.collections.load();
+        let _collections = self.collections.load();
         
         for entry in show_map.values() {
             // Need to find the show again to get current data
@@ -265,10 +265,9 @@ impl CollectionRepo {
         next_up_ids
     }
 
-    /// Similar returns similar items
     pub async fn similar(&self, collection_id: &str, item_id: &str) -> Vec<String> {
-        if let Some(collection) = self.get_collection(collection_id) {
-            if let Some(item) = self.get_item(collection_id, item_id) {
+        if let Some(_collection) = self.get_collection(collection_id) {
+            if let Some(_item) = self.get_item(collection_id, item_id) {
                 // TODO: Implement similar logic using search index
                 // For now, return empty
                 return Vec::new();

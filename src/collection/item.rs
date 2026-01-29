@@ -51,6 +51,10 @@ impl Movie {
     pub fn file_path(&self) -> String {
         format!("{}/{}", self.path, self.file_name)
     }
+
+    pub fn duration(&self) -> Duration {
+        self.metadata.duration()
+    }
 }
 
 /// Show represents a TV show with multiple seasons and episodes.
@@ -208,6 +212,15 @@ impl Item {
             Item::Show(s) => s.name.clone(),
             Item::Season(s) => s.name.clone(),
             Item::Episode(e) => e.name.clone(),
+        }
+    }
+
+    pub fn duration(&self) -> Duration {
+        match self {
+            Item::Movie(m) => m.duration(),
+            Item::Show(s) => s.duration(),
+            Item::Season(s) => s.duration(),
+            Item::Episode(e) => e.duration(),
         }
     }
 }

@@ -185,6 +185,20 @@ fn build_router(state: AppState) -> Router {
             .route("/Users/:user/Items/Filters", get(crate::jellyfin::item_filters))
             .route("/Users/:user/Items/Filters2", get(crate::jellyfin::item_filters2))
             
+            // User Data / Playback routes
+            .route("/Sessions/Playing", post(crate::jellyfin::sessions_playing))
+            .route("/Sessions/Playing/Progress", post(crate::jellyfin::sessions_playing_progress))
+            .route("/Sessions/Playing/Stopped", post(crate::jellyfin::sessions_playing_stopped))
+            
+            .route("/UserItems/:item/UserData", get(crate::jellyfin::users_item_userdata_simple))
+            .route("/Users/:user/Items/:item/UserData", get(crate::jellyfin::users_item_userdata))
+            
+            .route("/UserPlayedItems/:item", post(crate::jellyfin::users_played_items_post_simple).delete(crate::jellyfin::users_played_items_delete_simple))
+            .route("/Users/:user/PlayedItems/:item", post(crate::jellyfin::users_played_items_post).delete(crate::jellyfin::users_played_items_delete))
+            
+            .route("/UserFavoriteItems/:item", post(crate::jellyfin::user_favorite_items_post_simple).delete(crate::jellyfin::user_favorite_items_delete_simple))
+            .route("/Users/:user/FavoriteItems/:item", post(crate::jellyfin::user_favorite_items_post).delete(crate::jellyfin::user_favorite_items_delete))
+            
             .layer(mw::from_fn_with_state(
                 jellyfin_auth_state,
                 crate::jellyfin::auth_middleware
