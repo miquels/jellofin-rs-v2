@@ -11,6 +11,9 @@ struct Args {
 
 #[tokio::main]
 async fn main() {
+    // Install default crypto provider to avoid runtime panic with rustls 0.23
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     let args = Args::parse();
 
     if let Err(e) = jellofin_rs::run(args.config).await {
