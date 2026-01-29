@@ -11,6 +11,9 @@ use urlencoding::encode;
 
 use crate::collection::{CollectionRepo, Item as CollectionItem};
 use crate::imageresize::ImageResizer;
+use tower::ServiceExt;
+use tower_http::services::ServeFile;
+use tracing::warn;
 
 use super::etag::{check_etag, check_etag_obj};
 use super::proxy::hls_handler;
@@ -196,26 +199,26 @@ pub async fn data_handler(
         .image_resizer
         .resize_image(std::path::Path::new(file_path_str), None, None, None);
     if resized_path.exists() {
-        // Serve file with ETag
+        // Look up metadata for ETag check
         if let Ok(metadata) = std::fs::metadata(&resized_path) {
             if let Some(resp) = check_etag(&headers, file_path_str, &metadata) {
                 return resp;
             }
+        }
 
-            // For simplicity, we'll let axum serve the file content if ETag didn't match
-            let body = match std::fs::read(&resized_path) {
-                Ok(b) => Body::from(b),
-                Err(_) => return StatusCode::NOT_FOUND.into_response(),
-            };
-
-            Response::builder()
-                .header(header::CACHE_CONTROL, "max-age=86400, stale-while-revalidate=300")
-                .header(header::CONTENT_TYPE, "application/octet-stream")
-                .body(body)
-                .unwrap()
-                .into_response()
-        } else {
-            StatusCode::NOT_FOUND.into_response()
+        match ServeFile::new(resized_path).oneshot(req).await {
+            Ok(response) => {
+                let mut response = response.into_response();
+                response.headers_mut().insert(
+                    header::CACHE_CONTROL,
+                    "max-age=86400, stale-while-revalidate=300".parse().unwrap(),
+                );
+                response
+            }
+            Err(e) => {
+                warn!("Failed to serve file: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            }
         }
     } else {
         StatusCode::NOT_FOUND.into_response()

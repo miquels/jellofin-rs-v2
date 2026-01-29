@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, Request, State},
-    http::{StatusCode, Uri},
+    http::StatusCode,
     response::{IntoResponse, Response},
     Json,
 };
@@ -9,7 +9,7 @@ use tower::ServiceExt;
 use tower_http::services::ServeFile;
 use tracing::warn;
 
-use crate::jellyfin::UserItemsResponse;
+use crate::jellyfin::{JellyfinState, UserItemsResponse};
 
 /// Handlers for /Videos/{item}/stream and related routes
 pub async fn video_stream_handler(

@@ -38,7 +38,7 @@ impl ImageResizer {
         quality: Option<u32>,
     ) -> PathBuf {
         // If no dimensions specified, return original
-        if width.is_none() && height.is_none() {
+        if width.is_none() && height.is_none() && quality.is_none() {
             return source_path.to_path_buf();
         }
 
@@ -141,17 +141,13 @@ impl ImageResizer {
         }
     }
 
-    /// Detect image format from file extension
+    /// Detect image format from file content
     fn detect_format(&self, path: &Path) -> Result<ImageFormat> {
-        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+        let mut file = fs::File::open(path)?;
+        let mut buffer = [0; 512];
+        std::io::Read::read(&mut file, &mut buffer)?;
 
-        match ext.as_str() {
-            "jpg" | "jpeg" => Ok(ImageFormat::Jpeg),
-            "png" => Ok(ImageFormat::Png),
-            "webp" => Ok(ImageFormat::WebP),
-            "gif" => Ok(ImageFormat::Gif),
-            _ => Ok(ImageFormat::Jpeg), // Default to JPEG
-        }
+        Ok(image::guess_format(&buffer)?)
     }
 
     /// Clear cache directory
