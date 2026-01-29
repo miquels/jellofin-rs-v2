@@ -163,6 +163,7 @@ fn build_router(state: AppState) -> Router {
         .route("/Branding/Configuration", get(crate::jellyfin::branding_configuration))
         .route("/Branding/Css", get(crate::jellyfin::branding_css))
         .route("/Branding/Css.css", get(crate::jellyfin::branding_css))
+        .route("/socket", get(crate::jellyfin::socket_handler))
         .with_state(jellyfin_auth_state.clone());
 
     // Jellyfin system and user routes (some public, some protected)

@@ -43,3 +43,8 @@ pub async fn health() -> &'static str {
 pub async fn plugins() -> Json<Vec<serde_json::Value>> {
     Json(Vec::new())
 }
+
+/// GET /socket - WebSocket endpoint (not implemented)
+pub async fn socket_handler() -> axum::http::StatusCode {
+    axum::http::StatusCode::NOT_FOUND
+}

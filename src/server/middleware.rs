@@ -46,6 +46,12 @@ pub async fn log_request_middleware(
     let debug_logs = state.debug;
     let method = req.method().clone();
     let uri = req.uri().clone();
+    let path = uri.path();
+
+    // Skip logging for ignored paths
+    if path == "/socket" {
+        return next.run(req).await;
+    }
 
     // Log POST request body for debugging
     let (parts, body) = req.into_parts();
