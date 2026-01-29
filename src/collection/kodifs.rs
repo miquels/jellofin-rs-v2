@@ -25,7 +25,8 @@ pub fn build_movies(collection: &mut Collection, _scan_interval: Duration) {
         }
 
         let path = entry.path();
-        if let Some(movie) = scan_movie_directory(path, &collection.directory) {
+        if let Some(mut movie) = scan_movie_directory(path, &collection.directory) {
+            movie.base_url = format!("/data/{}", collection.id);
             movies.push(Item::Movie(movie));
         }
     }
@@ -55,7 +56,8 @@ pub fn build_shows(collection: &mut Collection, _scan_interval: Duration) {
             continue; // Skip root directory
         }
 
-        if let Some(show) = scan_show_directory(path, &collection.directory) {
+        if let Some(mut show) = scan_show_directory(path, &collection.directory) {
+            show.base_url = format!("/data/{}", collection.id);
             shows.push(Item::Show(show));
         }
     }
