@@ -155,8 +155,7 @@ fn build_router(state: AppState) -> Router {
         .route("/System/Ping", get(crate::jellyfin::system_ping))
         .route("/health", get(crate::jellyfin::health))
         // Protected routes
-        .nest(
-            "/",
+        .merge(
             Router::new()
                 .route("/System/Info", get(crate::jellyfin::system_info))
                 .route("/Users", get(crate::jellyfin::users_all))
