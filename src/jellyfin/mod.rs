@@ -24,3 +24,7 @@ pub mod studio;
 pub use studio::*;
 pub mod person;
 pub use person::*;
+pub mod library;
+pub use library::*;
+pub mod localization;
+pub use localization::*;

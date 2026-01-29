@@ -183,6 +183,14 @@ fn build_router(state: AppState) -> Router {
             .route("/Persons", get(crate::jellyfin::persons_all))
             .route("/Persons/:name", get(crate::jellyfin::person_details))
             
+            // Library routes
+            .route("/Library/VirtualFolders", get(crate::jellyfin::library_virtual_folders))
+            
+            // Localization routes
+            .route("/Localization/Cultures", get(crate::jellyfin::localization_cultures))
+            .route("/Localization/Options", get(crate::jellyfin::localization_options))
+            .route("/Localization/ParentalRatings", get(crate::jellyfin::localization_parental_ratings))
+            
             // User-prefixed routes
             .route("/Users/:user/Items", get(crate::jellyfin::items_query))
             .route("/Users/:user/Items/Latest", get(crate::jellyfin::items_latest))

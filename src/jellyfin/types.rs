@@ -500,6 +500,98 @@ pub struct UpdatePlayStateRequest {
     pub event_name: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct Language {
+    pub display_name: String,
+    pub name: String,
+    pub three_letter_iso_language_name: String,
+    pub three_letter_iso_language_names: Vec<String>,
+    pub two_letter_iso_language_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct LocalizationOption {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ParentalRating {
+    pub name: String,
+    pub value: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "PascalCase")]
+pub struct PathInfo {
+    pub path: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "PascalCase")]
+pub struct TypeOption {
+    pub r#type: Option<String>,
+    pub metadata_fetchers: Option<Vec<String>>,
+    pub metadata_fetcher_order: Option<Vec<String>>,
+    pub image_fetchers: Option<Vec<String>>,
+    pub image_fetcher_order: Option<Vec<String>>,
+    pub image_options: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "PascalCase")]
+pub struct LibraryOptions {
+    pub enabled: bool,
+    pub enable_photos: Option<bool>,
+    pub enable_realtime_monitor: Option<bool>,
+    pub enable_lufs_scan: Option<bool>,
+    pub enable_chapter_image_extraction: Option<bool>,
+    pub extract_chapter_images_during_library_scan: Option<bool>,
+    pub enable_trickplay_image_extraction: Option<bool>,
+    pub extract_trickplay_images_during_library_scan: Option<bool>,
+    pub path_infos: Option<Vec<PathInfo>>,
+    pub save_local_metadata: Option<bool>,
+    pub enable_internet_providers: Option<bool>,
+    pub enable_automatic_series_grouping: Option<bool>,
+    pub enable_embedded_titles: Option<bool>,
+    pub enable_embedded_extras_titles: Option<bool>,
+    pub enable_embedded_episode_infos: Option<bool>,
+    pub automatic_refresh_interval_days: Option<i32>,
+    pub preferred_metadata_language: Option<String>,
+    pub metadata_country_code: Option<String>,
+    pub season_zero_display_name: Option<String>,
+    pub metadata_savers: Option<Vec<String>>,
+    pub disabled_local_metadata_readers: Option<Vec<String>>,
+    pub local_metadata_reader_order: Option<Vec<String>>,
+    pub disabled_subtitle_fetchers: Option<Vec<String>>,
+    pub subtitle_fetcher_order: Option<Vec<String>>,
+    pub skip_subtitles_if_embedded_subtitles_present: Option<bool>,
+    pub skip_subtitles_if_audio_track_matches: Option<bool>,
+    pub subtitle_download_languages: Option<Vec<String>>,
+    pub require_perfect_subtitle_match: Option<bool>,
+    pub save_subtitles_with_media: Option<bool>,
+    pub save_lyrics_with_media: Option<bool>,
+    pub automatically_add_to_collection: Option<bool>,
+    pub allow_embedded_subtitles: Option<String>,
+    pub type_options: Option<Vec<TypeOption>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "PascalCase")]
+pub struct MediaLibrary {
+    pub name: String,
+    pub locations: Option<Vec<String>>,
+    pub collection_type: Option<String>,
+    pub library_options: Option<LibraryOptions>,
+    #[serde(rename = "ItemId")]
+    pub item_id: Option<String>,
+    pub primary_image_item_id: Option<String>,
+    pub refresh_status: Option<String>,
+}
+
 use std::collections::HashMap;
 
 impl Default for UserConfiguration {
