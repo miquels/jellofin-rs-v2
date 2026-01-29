@@ -31,6 +31,7 @@ clap = { version = "4", features = ["derive"] }
 # Cryptography
 sha2 = "0.10"
 hex = "0.4"
+rustls = { version = "0.23", features = ["ring"] }
 
 # Search
 tantivy = "0.22"
