@@ -92,7 +92,9 @@ fn scan_movie_directory(path: &Path, collection_root: &str) -> Option<Movie> {
         file_name: video_path.file_name()?.to_str()?.to_string(),
         file_size: std::fs::metadata(&video_file).ok()?.len() as i64,
         metadata: {
-            let nfo_path = find_nfo(path, dir_name);
+            // Get video filename without extension
+            let video_stem = video_file.file_stem().and_then(|s| s.to_str()).unwrap_or(dir_name);
+            let nfo_path = find_nfo(path, dir_name, video_stem);
             if !nfo_path.as_os_str().is_empty() {
                 super::nfo::parse_movie_nfo(&nfo_path).unwrap_or_default()
             } else {
@@ -298,12 +300,20 @@ fn find_image(path: &Path, name: &str) -> String {
 }
 
 /// Find NFO file for a movie
-fn find_nfo(path: &Path, name: &str) -> PathBuf {
-    let nfo_path = path.join(format!("{}.nfo", name));
-    if nfo_path.exists() {
-        return nfo_path;
+fn find_nfo(path: &Path, dir_name: &str, video_stem: &str) -> PathBuf {
+    // 1. Check video_filename.nfo
+    let video_nfo = path.join(format!("{}.nfo", video_stem));
+    if video_nfo.exists() {
+        return video_nfo;
     }
 
+    // 2. Check directory_name.nfo
+    let dir_nfo = path.join(format!("{}.nfo", dir_name));
+    if dir_nfo.exists() {
+        return dir_nfo;
+    }
+
+    // 3. Check movie.nfo
     let movie_nfo = path.join("movie.nfo");
     if movie_nfo.exists() {
         return movie_nfo;
