@@ -1,0 +1,20 @@
+use clap::Parser;
+use std::process;
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Path to configuration file
+    #[arg(short, long, default_value = "jellofin-server.yaml")]
+    config: String,
+}
+
+#[tokio::main]
+async fn main() {
+    let args = Args::parse();
+
+    if let Err(e) = jellofin_rs::run(args.config).await {
+        eprintln!("Error: {}", e);
+        process::exit(1);
+    }
+}

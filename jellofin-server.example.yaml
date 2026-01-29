@@ -1,0 +1,35 @@
+listen:
+  address: "0.0.0.0"
+  port: "8096"
+  tlscert: ""
+  tlskey: ""
+
+appdir: "/path/to/web/app"
+cachedir: "/path/to/cache"
+
+database:
+  sqlite:
+    filename: "/path/to/jellofin.db"
+
+logfile: "/dev/stdout"
+
+collections:
+  - id: "movies"
+    name: "Movies"
+    type: "movies"
+    directory: "/media/movies"
+    baseurl: ""
+    hlsserver: ""
+  
+  - id: "shows"
+    name: "TV Shows"
+    type: "shows"
+    directory: "/media/shows"
+    baseurl: ""
+    hlsserver: ""
+
+jellyfin:
+  serverid: ""
+  servername: "Jellofin"
+  autoregister: true
+  imagequalityposter: 90

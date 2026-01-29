@@ -1,0 +1,65 @@
+[package]
+name = "jellofin-rs"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "jellofin-server"
+path = "src/bin/main.rs"
+
+[dependencies]
+# HTTP server
+axum = "0.8"
+axum-server = { version = "0.7", features = ["tls-rustls"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "compression-gzip", "fs"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Cryptography
+sha2 = "0.10"
+hex = "0.4"
+
+# Search
+tantivy = "0.22"
+
+# Image processing
+image = "0.25"
+
+# Time handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+thiserror = "1"
+
+# Utilities
+regex = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+async-trait = "0.1"
+arc-swap = "1"
+
+# HTTP client for proxying
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+walkdir = "2.5.0"
+urlencoding = "2.1"
+
+# Authentication
+bcrypt = "0.15"
+rand = "0.8"
+url = "2.5"

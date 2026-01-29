@@ -1,0 +1,38 @@
+listen:
+  address: "0.0.0.0"
+  port: "8096"
+  # Optional TLS configuration
+  # tlscert: "/path/to/cert.pem"
+  # tlskey: "/path/to/key.pem"
+
+# Optional directories
+appdir: "./app"
+cachedir: "./cache"
+dbdir: "./data"
+
+# Database configuration
+database:
+  path: "./data/jellofin.db"
+  sqlite:
+    filename: "./data/jellofin.db"
+
+# Jellyfin server configuration
+jellyfin:
+  serverid: "unique-server-id-here"
+  servername: "My Jellofin Server"
+  autoregister: true
+  imagequalityposter: 90
+
+# Media collections
+collections:
+  - id: "movies"
+    name: "Movies"
+    type: "movies"
+    directory: "/media/movies"
+    baseurl: ""
+  
+  - id: "tvshows"
+    name: "TV Shows"
+    type: "shows"
+    directory: "/media/tv"
+    baseurl: ""
