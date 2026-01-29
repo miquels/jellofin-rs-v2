@@ -495,5 +495,8 @@ fn copy_episode(episode: &crate::collection::Episode, do_nfo: bool) -> Episode {
 
 /// Helper: URL-escape a path
 fn escape_path(path: &str) -> String {
-    encode(path).to_string()
+    path.split('/')
+        .map(|part| encode(part))
+        .collect::<Vec<_>>()
+        .join("/")
 }
