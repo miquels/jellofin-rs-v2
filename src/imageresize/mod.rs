@@ -2,7 +2,6 @@ use image::{DynamicImage, GenericImageView, ImageFormat};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::path::{Path, PathBuf};
 
 /// Image resizer with caching
 pub struct ImageResizer {
