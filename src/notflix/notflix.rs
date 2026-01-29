@@ -158,6 +158,7 @@ pub async fn genres_handler(
 pub async fn data_handler(
     State(state): State<NotflixState>,
     AxumPath((source, path_string)): AxumPath<(String, String)>,
+    Query(params): Query<std::collections::HashMap<String, String>>,
     headers: HeaderMap,
     req: Request<Body>,
 ) -> Response {
@@ -194,10 +195,15 @@ pub async fn data_handler(
         return open_sub(&headers, file_path_str).into_response();
     }
 
+    // Parse resize parameters
+    let width = params.get("width").or_else(|| params.get("w")).and_then(|v| v.parse().ok());
+    let height = params.get("height").or_else(|| params.get("h")).and_then(|v| v.parse().ok());
+    let quality = params.get("quality").or_else(|| params.get("q")).and_then(|v| v.parse().ok());
+
     // Try image resizer
     let resized_path = state
         .image_resizer
-        .resize_image(std::path::Path::new(file_path_str), None, None, None);
+        .resize_image(std::path::Path::new(file_path_str), width, height, quality);
     if resized_path.exists() {
         // Look up metadata for ETag check
         if let Ok(metadata) = std::fs::metadata(&resized_path) {

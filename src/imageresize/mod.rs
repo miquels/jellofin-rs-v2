@@ -37,11 +37,11 @@ impl ImageResizer {
         quality: Option<u32>,
     ) -> PathBuf {
         let params = format!("w={:?} h={:?} q={:?}", width, height, quality);
-        tracing::debug!("Resize request for {}: {}", source_path.display(), params);
+        tracing::info!("Resize request for {}: {}", source_path.display(), params);
 
         // If no dimensions specified, return original
         if width.is_none() && height.is_none() && quality.is_none() {
-            tracing::debug!("No resize params for {}, returning original", source_path.display());
+            tracing::info!("No resize params for {}, returning original", source_path.display());
             return source_path.to_path_buf();
         }
 
@@ -51,7 +51,7 @@ impl ImageResizer {
 
         // Check if cached version exists
         if cache_path.exists() {
-            tracing::debug!("Cache hit: {}", cache_path.display());
+            tracing::info!("Cache hit: {}", cache_path.display());
             return cache_path;
         }
 
@@ -60,7 +60,7 @@ impl ImageResizer {
         // Resize and cache
         match self.resize_and_cache(source_path, &cache_path, width, height, quality) {
             Ok(()) => {
-                tracing::debug!("Resize success: {}", cache_path.display());
+                tracing::info!("Resize success: {}", cache_path.display());
                 cache_path
             }
             Err(e) => {
