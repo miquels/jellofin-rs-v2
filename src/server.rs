@@ -318,6 +318,8 @@ fn build_router(state: AppState) -> Router {
         .merge(jellyfin_api)
         // Apply global middleware
         .layer(mw::from_fn(middleware::normalize_path_middleware))
+        .layer(mw::from_fn(middleware::add_cors_headers_middleware))
+        .layer(mw::from_fn(middleware::etag_validation_middleware))
         .layer(mw::from_fn(middleware::log_request_middleware))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
