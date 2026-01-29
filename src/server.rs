@@ -27,16 +27,18 @@ pub struct AppState {
     pub collections: Arc<CollectionRepo>,
     pub repo: Arc<SqliteRepository>,
     pub image_resizer: Arc<ImageResizer>,
+    pub debug: bool,
 }
 
 /// Main entry point - loads config and starts server
-pub async fn run(config_path: String) -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize tracing
+pub async fn run(config_path: String, debug: bool) -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize tracing with JSON formatting
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+
     tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
-        )
+        .with_env_filter(filter)
+        .json()
         .init();
 
     info!("Using config file {}", config_path);
@@ -88,6 +90,7 @@ pub async fn run(config_path: String) -> Result<(), Box<dyn std::error::Error>> 
         collections,
         repo,
         image_resizer,
+        debug,
     };
 
     // Build router
@@ -325,7 +328,7 @@ fn build_router(state: AppState) -> Router {
         .layer(mw::from_fn(middleware::normalize_path_middleware))
         .layer(mw::from_fn(middleware::add_cors_headers_middleware))
         .layer(mw::from_fn(middleware::etag_validation_middleware))
-        .layer(mw::from_fn(middleware::log_request_middleware))
+        .layer(mw::from_fn_with_state(state, middleware::log_request_middleware))
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
 }

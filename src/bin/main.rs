@@ -7,6 +7,10 @@ struct Args {
     /// Path to configuration file
     #[arg(short, long, default_value = "jellofin-server.yaml")]
     config: String,
+
+    /// Enable debug mode
+    #[arg(short, long)]
+    debug: bool,
 }
 
 #[tokio::main]
@@ -16,7 +20,7 @@ async fn main() {
 
     let args = Args::parse();
 
-    if let Err(e) = jellofin_rs::run(args.config).await {
+    if let Err(e) = jellofin_rs::run(args.config, args.debug).await {
         eprintln!("Error: {}", e);
         process::exit(1);
     }

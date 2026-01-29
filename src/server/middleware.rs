@@ -1,5 +1,6 @@
-use axum::{extract::Request, middleware::Next, response::Response};
+use axum::{extract::{Request, State}, middleware::Next, response::Response};
 use tracing::info;
+use crate::server::AppState;
 
 /// Middleware to normalize request paths
 /// 1. Removes redundant slashes (// -> /)
@@ -38,11 +39,11 @@ pub async fn normalize_path_middleware(mut req: Request, next: Next) -> Response
 }
 
 pub async fn log_request_middleware(
+    State(state): State<AppState>,
     req: Request,
     next: Next,
 ) -> Response {
-    // let debug_logs = state.config.debug_logs;
-    let debug_logs = true;
+    let debug_logs = state.debug;
     let method = req.method().clone();
     let uri = req.uri().clone();
 
