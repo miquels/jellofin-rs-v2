@@ -2,7 +2,7 @@ use image::{DynamicImage, GenericImageView, ImageFormat};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::warn;
+use std::path::{Path, PathBuf};
 
 /// Image resizer with caching
 pub struct ImageResizer {
@@ -37,8 +37,12 @@ impl ImageResizer {
         height: Option<u32>,
         quality: Option<u32>,
     ) -> PathBuf {
+        let params = format!("w={:?} h={:?} q={:?}", width, height, quality);
+        tracing::debug!("Resize request for {}: {}", source_path.display(), params);
+
         // If no dimensions specified, return original
         if width.is_none() && height.is_none() && quality.is_none() {
+            tracing::debug!("No resize params for {}, returning original", source_path.display());
             return source_path.to_path_buf();
         }
 
@@ -48,14 +52,20 @@ impl ImageResizer {
 
         // Check if cached version exists
         if cache_path.exists() {
+            tracing::debug!("Cache hit: {}", cache_path.display());
             return cache_path;
         }
 
+        tracing::info!("Resizing/caching: {} -> {}", source_path.display(), cache_path.display());
+
         // Resize and cache
         match self.resize_and_cache(source_path, &cache_path, width, height, quality) {
-            Ok(()) => cache_path,
+            Ok(()) => {
+                tracing::debug!("Resize success: {}", cache_path.display());
+                cache_path
+            }
             Err(e) => {
-                warn!("Failed to resize image {}: {}", source_path.display(), e);
+                tracing::error!("Failed to resize image {}: {}", source_path.display(), e);
                 source_path.to_path_buf()
             }
         }
