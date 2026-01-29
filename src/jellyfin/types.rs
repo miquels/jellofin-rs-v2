@@ -349,6 +349,7 @@ pub struct BaseItemDto {
     pub channel_name: Option<String>,
     pub overview_html: Option<String>,
     pub completion_percentage: Option<f64>,
+    pub play_access: Option<String>,
     pub status: Option<String>,
 }
 
@@ -663,6 +664,7 @@ impl Default for BaseItemDto {
             overview_html: None,
             completion_percentage: None,
             status: None,
+            play_access: None,
             media_type: None,
             is_hd: None,
             is_4k: None,

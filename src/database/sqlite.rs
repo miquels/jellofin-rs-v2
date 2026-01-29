@@ -5,8 +5,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::model::{AccessToken, DatabaseError, Item, Playlist, Result, User, UserData};
-use super::{AccessTokenRepo, ItemRepo, PlaylistRepo, Repository, UserDataRepo, UserRepo};
+use super::model::{AccessToken, DatabaseError, Item, Person, Playlist, Result, User, UserData};
+use super::{AccessTokenRepo, ItemRepo, PersonRepo, PlaylistRepo, Repository, UserDataRepo, UserRepo};
 
 /// SQLite database repository implementation
 pub struct SqliteRepository {
@@ -126,6 +126,23 @@ impl SqliteRepository {
                 name TEXT NOT NULL,
                 item_ids TEXT NOT NULL,
                 FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+            "#,
+        )
+        .execute(pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS persons (
+                id TEXT PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                date_of_birth INTEGER NOT NULL,
+                place_of_birth TEXT NOT NULL DEFAULT '',
+                poster_url TEXT NOT NULL DEFAULT '',
+                bio TEXT NOT NULL DEFAULT '',
+                created INTEGER NOT NULL,
+                last_updated INTEGER NOT NULL
             )
             "#,
         )
@@ -552,5 +569,28 @@ impl PlaylistRepo for SqliteRepository {
         }
 
         Ok(())
+    }
+}
+#[async_trait]
+impl PersonRepo for SqliteRepository {
+    async fn get_person(&self, name: &str, _user_id: &str) -> Result<Person> {
+        let row = sqlx::query_as::<_, (String, String, i64, String, String, String, i64, i64)>(
+            "SELECT id, name, date_of_birth, place_of_birth, poster_url, bio, created, last_updated FROM persons WHERE name = ?"
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(DatabaseError::NotFound)?;
+
+        Ok(Person {
+            id: row.0,
+            name: row.1,
+            date_of_birth: chrono::DateTime::from_timestamp(row.2, 0).unwrap_or_default(),
+            place_of_birth: row.3,
+            poster_url: row.4,
+            bio: row.5,
+            created: chrono::DateTime::from_timestamp(row.6, 0).unwrap_or_default(),
+            last_updated: chrono::DateTime::from_timestamp(row.7, 0).unwrap_or_default(),
+        })
     }
 }

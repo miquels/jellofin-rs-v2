@@ -104,4 +104,16 @@ pub enum DatabaseError {
     Json(#[from] serde_json::Error),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Person {
+    pub id: String,
+    pub name: String,
+    pub date_of_birth: DateTime<Utc>,
+    pub place_of_birth: String,
+    pub poster_url: String,
+    pub bio: String,
+    pub created: DateTime<Utc>,
+    pub last_updated: DateTime<Utc>,
+}
+
 pub type Result<T> = std::result::Result<T, DatabaseError>;

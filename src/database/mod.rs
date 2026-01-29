@@ -6,9 +6,16 @@ pub use sqlite::SqliteRepository;
 
 use async_trait::async_trait;
 
+/// PersonRepo defines person DB operations
+#[async_trait]
+pub trait PersonRepo {
+    /// GetPerson retrieves a person by name.
+    async fn get_person(&self, name: &str, user_id: &str) -> Result<model::Person>;
+}
+
 /// Database repo aggregates the repo interfaces.
 #[async_trait]
-pub trait Repository: UserRepo + AccessTokenRepo + ItemRepo + UserDataRepo + PlaylistRepo + Send + Sync {
+pub trait Repository: UserRepo + AccessTokenRepo + ItemRepo + UserDataRepo + PlaylistRepo + PersonRepo + Send + Sync {
     /// Start background jobs for the repository.
     fn start_background_jobs(&self);
 }

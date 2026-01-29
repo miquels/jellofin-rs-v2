@@ -175,6 +175,14 @@ fn build_router(state: AppState) -> Router {
             .route("/Shows/:id/Seasons", get(crate::jellyfin::show_seasons))
             .route("/Shows/:id/Episodes", get(crate::jellyfin::show_episodes))
             
+            // Metadata routes
+            .route("/Genres", get(crate::jellyfin::genres_all))
+            .route("/Genres/:name", get(crate::jellyfin::genre_details))
+            .route("/Studios", get(crate::jellyfin::studios_all))
+            .route("/Studios/:name", get(crate::jellyfin::studio_details))
+            .route("/Persons", get(crate::jellyfin::persons_all))
+            .route("/Persons/:name", get(crate::jellyfin::person_details))
+            
             // User-prefixed routes
             .route("/Users/:user/Items", get(crate::jellyfin::items_query))
             .route("/Users/:user/Items/Latest", get(crate::jellyfin::items_latest))
