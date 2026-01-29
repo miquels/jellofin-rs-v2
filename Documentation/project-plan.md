@@ -402,23 +402,60 @@ This document outlines the execution plan for porting the jellofin-go server to 
 
 ---
 
-### Phase 16: Integration and Testing
+### Phase 16: Final Compliance & Refactoring
+
+**Goal:** Ensure 1:1 structural and functional compliance for the Jellyfin API.
+
+#### Tasks
+
+- [x] **16.1 Modularize Jellyfin handlers**
+  - Rename `handlers.rs` to `jellyfin.rs`
+  - Split business logic into dedicated module files (branding, device, item, etc.)
+- [x] **16.2 Fix type inference and compilation**
+  - Resolve all `cargo check` errors
+  - Standardize error handling and response types
+- [x] **16.3 Verify structural compliance**
+  - Ensure 1:1 match with Go implementation directory structure
+
+**Verification:** `cargo check` passes with zero errors for the Jellyfin module.
+
+---
+
+### Phase 17: Notflix API Compliance & Refactoring
+
+**Goal:** Ensure 1:1 structural and functional compliance for the Notflix API.
+
+#### Tasks
+
+- [x] **17.1 Modularize Notflix handlers**
+  - Move logic into `notflix.rs`, `etag.rs`, `proxy.rs`, and `subtitles.rs`
+- [x] **17.2 Implement missing Notflix features**
+  - Port HLS proxying logic
+  - Port subtitle conversion (.srt to .vtt/JSON)
+- [x] **17.3 Standardize ETag handling**
+  - Implement validation for both file-based and object-based ETags
+
+**Verification:** Notflix API is fully modularized and functional, build is clean.
+
+---
+
+### Phase 18: Integration and Testing
 
 **Goal:** Final integration and testing.
 
 #### Tasks
 
-- [ ] **16.1 Integration testing**
+- [ ] **18.1 Integration testing**
   - Test with Jellyfin web client
   - Test with Jellyfin mobile apps
   - Test with third-party apps (Infuse, etc.)
 
-- [ ] **16.2 Performance testing**
+- [ ] **18.2 Performance testing**
   - Large library scanning
   - Concurrent request handling
   - Memory usage profiling
 
-- [ ] **16.3 Documentation**
+- [ ] **18.3 Documentation**
   - Update README
   - Configuration examples
   - Deployment guide
@@ -437,7 +474,8 @@ The phases should be executed roughly in order, but some parallelization is poss
 4. **Phase 7** (ImageResize) - Can run parallel to Phase 4-6
 5. **Phase 8** (Notflix) - Depends on Phase 4-7
 6. **Phase 9-15** (Jellyfin) - Sequential, depends on Phase 4-7
-7. **Phase 16** (Testing) - Final
+7. **Phase 16-17** (Refactoring) - Final compliance checks
+8. **Phase 18** (Testing) - Final
 
 ## File Mapping Reference
 

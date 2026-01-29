@@ -261,7 +261,7 @@ fn make_session_info(token: &model::AccessToken, username: &str, server_id: &str
     SessionInfo {
         play_state: PlayState::default(),
         additional_users: Vec::new(),
-        capabilities: Capabilities::default(),
+        capabilities: SessionResponseCapabilities::default(),
         remote_end_point: token.remote_address.clone(),
         playable_media_types: vec!["Video".to_string(), "Audio".to_string()],
         id: token.token.clone(),
@@ -277,6 +277,9 @@ fn make_session_info(token: &model::AccessToken, username: &str, server_id: &str
         supports_remote_control: false,
         server_id: server_id.to_string(),
         supported_commands: Vec::new(),
+        has_custom_device_name: false,
+        now_playing_queue: Vec::new(),
+        now_playing_queue_full_items: Vec::new(),
     }
 }
 
@@ -300,4 +303,19 @@ fn make_user(user: &model::User, server_id: &str) -> User {
 /// GET /QuickConnect/Enabled
 pub async fn quick_connect_enabled() -> Json<bool> {
     Json(false)
+}
+
+/// POST /QuickConnect/Initiate
+pub async fn quick_connect_initiate() -> impl axum::response::IntoResponse {
+    StatusCode::NOT_IMPLEMENTED
+}
+
+/// GET /QuickConnect/Connect
+pub async fn quick_connect_connect() -> impl axum::response::IntoResponse {
+    StatusCode::NOT_IMPLEMENTED
+}
+
+/// POST /QuickConnect/Authorize
+pub async fn quick_connect_authorize() -> impl axum::response::IntoResponse {
+    StatusCode::NO_CONTENT
 }

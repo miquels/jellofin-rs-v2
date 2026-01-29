@@ -106,7 +106,7 @@ pub struct SessionInfo {
     #[serde(rename = "AdditionalUsers")]
     pub additional_users: Vec<String>,
     #[serde(rename = "Capabilities")]
-    pub capabilities: Capabilities,
+    pub capabilities: SessionResponseCapabilities,
     #[serde(rename = "RemoteEndPoint")]
     pub remote_end_point: String,
     #[serde(rename = "PlayableMediaTypes")]
@@ -137,6 +137,12 @@ pub struct SessionInfo {
     pub server_id: String,
     #[serde(rename = "SupportedCommands")]
     pub supported_commands: Vec<String>,
+    #[serde(rename = "HasCustomDeviceName")]
+    pub has_custom_device_name: bool,
+    #[serde(rename = "NowPlayingQueue")]
+    pub now_playing_queue: Vec<serde_json::Value>,
+    #[serde(rename = "NowPlayingQueueFullItems")]
+    pub now_playing_queue_full_items: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,10 +155,12 @@ pub struct PlayState {
     pub is_muted: bool,
     #[serde(rename = "RepeatMode")]
     pub repeat_mode: String,
+    #[serde(rename = "PlaybackOrder")]
+    pub playback_order: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Capabilities {
+pub struct SessionResponseCapabilities {
     #[serde(rename = "PlayableMediaTypes")]
     pub playable_media_types: Vec<String>,
     #[serde(rename = "SupportedCommands")]
@@ -592,6 +600,67 @@ pub struct MediaLibrary {
     pub refresh_status: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct BrandingConfiguration {
+    pub login_disclaimer: String,
+    pub custom_css: String,
+    pub splashscreen_enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct DevicesOptionsResponse {
+    #[serde(rename = "DeviceId")]
+    pub device_id: String,
+    pub custom_name: String,
+    pub disable_auto_login: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct CreatePlaylistRequest {
+    pub name: String,
+    #[serde(rename = "UserId")]
+    pub user_id: String,
+    pub ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct CreatePlaylistResponse {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct GetPlaylistResponse {
+    pub open_access: bool,
+    pub shares: Vec<String>,
+    pub item_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct PlaylistAccess {
+    pub users: Vec<String>,
+    pub can_edit: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HTTPError {
+    pub status: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub r#type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub errors: Option<HashMap<String, Vec<String>>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "traceId")]
+    pub trace_id: Option<String>,
+}
+
 use std::collections::HashMap;
 
 impl Default for UserConfiguration {
@@ -637,11 +706,12 @@ impl Default for PlayState {
             is_paused: false,
             is_muted: false,
             repeat_mode: "RepeatNone".to_string(),
+            playback_order: "Default".to_string(),
         }
     }
 }
 
-impl Default for Capabilities {
+impl Default for SessionResponseCapabilities {
     fn default() -> Self {
         Self {
             playable_media_types: vec!["Video".to_string(), "Audio".to_string()],
@@ -764,4 +834,26 @@ impl Default for BaseItemDto {
             height: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct DeviceItem {
+    #[serde(rename = "Id")]
+    pub id: String,
+    pub last_user_id: String,
+    pub last_user_name: String,
+    pub name: String,
+    pub app_name: String,
+    pub app_version: String,
+    pub capabilities: SessionResponseCapabilities,
+    pub date_last_activity: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct Country {
+    pub name: String,
+    pub two_letter_iso_region_name: String,
+    pub three_letter_iso_region_name: String,
 }
