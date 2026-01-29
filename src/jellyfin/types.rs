@@ -174,7 +174,7 @@ pub struct SessionResponseCapabilities {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemInfoPublicResponse {
     #[serde(rename = "LocalAddress")]
-    pub local_address: String,
+    pub local_address: Option<String>,
     #[serde(rename = "ServerName")]
     pub server_name: String,
     #[serde(rename = "Version")]
@@ -192,7 +192,7 @@ pub struct SystemInfoPublicResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct SystemInfo {
-    pub local_address: String,
+    pub local_address: Option<String>,
     pub server_name: String,
     pub version: String,
     pub product_name: String,
