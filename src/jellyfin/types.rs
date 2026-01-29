@@ -725,7 +725,7 @@ impl Default for SessionResponseCapabilities {
 impl Default for SystemInfo {
     fn default() -> Self {
         Self {
-            local_address: String::new(),
+            local_address: None,
             server_name: String::new(),
             version: String::new(),
             product_name: String::new(),
