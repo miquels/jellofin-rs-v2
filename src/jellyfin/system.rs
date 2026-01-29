@@ -7,7 +7,7 @@ pub async fn system_info(State(state): State<JellyfinState>) -> Json<SystemInfo>
     Json(SystemInfo {
         local_address: "0.0.0.0".to_string(),
         server_name: state.server_name.clone(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version: "10.10.7".to_string(),
         product_name: "Jellofin Server".to_string(),
         operating_system: std::env::consts::OS.to_string(),
         id: state.server_id.clone(),
