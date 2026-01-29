@@ -52,10 +52,20 @@ pub async fn authenticate_by_name(
     // Try to get user from database
     let mut user = state.repo.get_user(&username).await.ok();
 
-    if let Some(ref db_user) = user {
-        // Verify password
+    // Check if user exists or needs creation
+    if let Some(mut db_user) = user.take() {
+         // Verify password
         if !verify(&request.pw, &db_user.password).unwrap_or(false) {
-            return Err(StatusCode::UNAUTHORIZED);
+             // If auto-register is enabled, update password
+            if state.auto_register {
+                 let hashed_password = hash(&request.pw, DEFAULT_COST).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+                 db_user.password = hashed_password;
+                 user = Some(db_user);
+            } else {
+                return Err(StatusCode::UNAUTHORIZED);
+            }
+        } else {
+            user = Some(db_user);
         }
     } else if state.auto_register {
         // Auto-register user
