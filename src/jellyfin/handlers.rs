@@ -1,9 +1,4 @@
-use axum::{
-    extract::{Path as AxumPath, State},
-    http::StatusCode,
-    response::Json,
-    Extension,
-};
+use axum::response::Json;
 use std::sync::Arc;
 
 use crate::collection::CollectionRepo;
@@ -17,59 +12,6 @@ pub struct JellyfinState {
     pub collections: Arc<CollectionRepo>,
     pub server_id: String,
     pub server_name: String,
-}
-
-/// GET /Users - Get all users (returns current user only)
-pub async fn users_all(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-) -> Result<Json<Vec<User>>, StatusCode> {
-    let user = state.repo.get_user_by_id(&token.user_id).await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    
-    Ok(Json(vec![make_user(&user, &state.server_id)]))
-}
-
-/// GET /Users/Me - Get current user
-pub async fn users_me(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-) -> Result<Json<User>, StatusCode> {
-    let user = state.repo.get_user_by_id(&token.user_id).await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    
-    Ok(Json(make_user(&user, &state.server_id)))
-}
-
-/// GET /Users/{id} - Get user by ID
-pub async fn users_by_id(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-    AxumPath(user_id): AxumPath<String>,
-) -> Result<Json<User>, StatusCode> {
-    if user_id != token.user_id {
-        return Err(StatusCode::NOT_FOUND);
-    }
-    
-    let user = state.repo.get_user_by_id(&token.user_id).await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-    
-    Ok(Json(make_user(&user, &state.server_id)))
-}
-
-/// GET /Users/Public - Get public users (returns empty list)
-pub async fn users_public() -> Json<Vec<User>> {
-    Json(Vec::new())
-}
-
-/// GET /System/Ping - Ping endpoint
-pub async fn system_ping() -> &'static str {
-    "\"Jellyfin Server\""
-}
-
-/// GET /health - Health check
-pub async fn health() -> &'static str {
-    "Healthy"
 }
 
 /// GET /Plugins - Get plugins (returns empty list)
@@ -87,7 +29,7 @@ pub async fn branding_configuration() -> Json<BrandingConfiguration> {
 }
 
 /// Helper: Make User from database model
-fn make_user(user: &model::User, server_id: &str) -> User {
+pub fn make_user(user: &model::User, server_id: &str) -> User {
     User {
         name: user.username.clone(),
         server_id: server_id.to_string(),

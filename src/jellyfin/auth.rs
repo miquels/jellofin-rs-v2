@@ -1,15 +1,14 @@
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::{header, HeaderMap, Request, StatusCode},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
     Json,
 };
 use bcrypt::{hash, verify, DEFAULT_COST};
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
-use tracing::{info, warn};
 
 use crate::database::{model, Repository};
 use crate::idhash::id_hash;
@@ -301,19 +300,4 @@ fn make_user(user: &model::User, server_id: &str) -> User {
 /// GET /QuickConnect/Enabled
 pub async fn quick_connect_enabled() -> Json<bool> {
     Json(false)
-}
-
-/// GET /System/Info/Public
-pub async fn system_info_public(
-    State(state): State<JellyfinAuthState>,
-) -> Json<SystemInfoPublicResponse> {
-    Json(SystemInfoPublicResponse {
-        local_address: "0.0.0.0".to_string(),
-        server_name: "Jellofin-rs".to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
-        product_name: "Jellofin Server".to_string(),
-        operating_system: std::env::consts::OS.to_string(),
-        id: state.server_id.clone(),
-        startup_wizard_completed: true,
-    })
 }

@@ -6,7 +6,6 @@ pub use config::Config;
 use axum::{
     Router,
     routing::{get, post},
-    http::StatusCode,
     response::IntoResponse,
 };
 use std::net::SocketAddr;
@@ -139,32 +138,67 @@ fn build_router(state: AppState) -> Router {
     let jellyfin_public = Router::new()
         .route("/Users/AuthenticateByName", post(crate::jellyfin::authenticate_by_name))
         .route("/QuickConnect/Enabled", get(crate::jellyfin::quick_connect_enabled))
-        .route("/System/Info/Public", get(crate::jellyfin::system_info_public))
         .with_state(jellyfin_auth_state.clone());
 
-    // Jellyfin protected routes (auth required)
-    let jellyfin_protected = Router::new()
-        .route("/Users", get(crate::jellyfin::users_all))
-        .route("/Users/Me", get(crate::jellyfin::users_me))
-        .route("/Users/:id", get(crate::jellyfin::users_by_id))
-        .route("/Users/Public", get(crate::jellyfin::users_public))
-        .route("/Plugins", get(crate::jellyfin::plugins))
-        .route("/Branding/Configuration", get(crate::jellyfin::branding_configuration))
-        .layer(mw::from_fn_with_state(
-            jellyfin_auth_state,
-            crate::jellyfin::auth_middleware
-        ))
+    // Jellyfin system and user routes (some public, some protected)
+    let jellyfin_api = Router::new()
+        // Public system routes
+        .route("/System/Info/Public", get(crate::jellyfin::system_info_public))
+        .route("/System/Ping", get(crate::jellyfin::system_ping))
+        .route("/health", get(crate::jellyfin::health))
+        // Protected routes
+        .nest("/", Router::new()
+            .route("/System/Info", get(crate::jellyfin::system_info))
+            .route("/Users", get(crate::jellyfin::users_all))
+            .route("/Users/Me", get(crate::jellyfin::users_me))
+            .route("/Users/:id", get(crate::jellyfin::users_by_id))
+            .route("/Users/:id/Views", get(crate::jellyfin::user_views))
+            .route("/Users/Public", get(crate::jellyfin::users_public))
+            .route("/Plugins", get(crate::jellyfin::plugins))
+            .route("/Branding/Configuration", get(crate::jellyfin::branding_configuration))
+            
+            // Item routes
+            .route("/Items", get(crate::jellyfin::items_query))
+            .route("/Items/Latest", get(crate::jellyfin::items_latest))
+            .route("/Items/Counts", get(crate::jellyfin::items_counts))
+            .route("/Items/Suggestions", get(crate::jellyfin::items_suggestions))
+            .route("/Items/Resume", get(crate::jellyfin::items_resume))
+            .route("/Items/:item", get(crate::jellyfin::item_details))
+            .route("/Items/:item/Similar", get(crate::jellyfin::items_similar))
+            .route("/Items/:item/Ancestors", get(crate::jellyfin::item_ancestors))
+            
+            // Search / Hints
+            .route("/Search/Hints", get(crate::jellyfin::search_hints))
+            
+            // Show routes
+            .route("/Shows/NextUp", get(crate::jellyfin::shows_next_up))
+            .route("/Shows/:id/Seasons", get(crate::jellyfin::show_seasons))
+            .route("/Shows/:id/Episodes", get(crate::jellyfin::show_episodes))
+            
+            // User-prefixed routes
+            .route("/Users/:user/Items", get(crate::jellyfin::items_query))
+            .route("/Users/:user/Items/Latest", get(crate::jellyfin::items_latest))
+            .route("/Users/:user/Items/Resume", get(crate::jellyfin::items_resume))
+            .route("/Users/:user/Items/Suggestions", get(crate::jellyfin::items_suggestions))
+            .route("/Users/:user/Items/:item", get(crate::jellyfin::item_details))
+            .route("/Users/:user/Items/:item/Similar", get(crate::jellyfin::items_similar))
+            .route("/Users/:user/Items/Filters", get(crate::jellyfin::item_filters))
+            .route("/Users/:user/Items/Filters2", get(crate::jellyfin::item_filters2))
+            
+            .layer(mw::from_fn_with_state(
+                jellyfin_auth_state,
+                crate::jellyfin::auth_middleware
+            ))
+        )
         .with_state(jellyfin_state);
 
     // Combine all routes
     Router::new()
-        .route("/health", get(crate::jellyfin::health))
-        .route("/System/Ping", get(crate::jellyfin::system_ping))
         .route("/robots.txt", get(robots_handler))
         .merge(notflix_routes)
         .merge(jellyfin_public)
-        .merge(jellyfin_protected)
-        // Apply middleware
+        .merge(jellyfin_api)
+        // Apply global middleware
         .layer(mw::from_fn(middleware::normalize_path_middleware))
         .layer(mw::from_fn(middleware::log_request_middleware))
         .layer(CompressionLayer::new())

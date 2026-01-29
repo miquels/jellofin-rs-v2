@@ -156,11 +156,47 @@
 
 ## 🔜 Remaining Phases
 
-### Phase 8-10: Partially complete
+### ✅ Phase 8: Notflix API
+- **Files Created:**
+  - `src/notflix/mod.rs`
+  - `src/notflix/types.rs`
+  - `src/notflix/handlers.rs`
+- **Features:**
+  - Collection listing and details
+  - Item listing and details
+  - Genre counts
+  - Integrated into `server.rs`
+- **Status:** ✅ Complete
 
-- session was stopped half way
-- need to check which phases are complete
-- might be done or mostly done.
+### ✅ Phase 9: Jellyfin API - Authentication
+- **Files Created:**
+  - `src/jellyfin/auth.rs`
+  - `src/jellyfin/types.rs` (Auth types)
+- **Features:**
+  - `AuthenticateByName` with auto-registration
+  - Auth middleware (token validation)
+  - QuickConnect support stub
+  - Public system info
+- **Status:** ✅ Complete
+
+### ✅ Phase 10: Jellyfin API - Core Types & Conversion
+- **Status:** ✅ Complete
+- **Features:**
+  - `BaseItemDto` and related types in `src/jellyfin/types.rs`
+  - `Movie`/`Show`/`Episode` to `BaseItemDto` conversion in `src/jellyfin/jfitem.rs`
+  - `Metadata` struct updated for direct access and runtime ticks
+
+### ✅ Phase 11: Jellyfin API - System and User Endpoints
+- **Files Created:**
+  - `src/jellyfin/system.rs` (System handlers)
+  - `src/jellyfin/user.rs` (User handlers)
+- **Features:**
+  - `/Users`, `/Users/Me`, `/Users/{id}`, `/Users/Public`
+  - `/Users/{id}/Views` (Library collections)
+  - `/System/Ping`, `/health`
+  - `/System/Info`, `/System/Info/Public`
+  - `/Plugins`, `/Branding/Configuration`
+- **Status:** ✅ Complete
 
 ### Phase 11-15: API Modules (~5,400 lines)
 **Jellyfin API:**

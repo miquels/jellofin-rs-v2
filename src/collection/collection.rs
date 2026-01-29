@@ -75,23 +75,24 @@ impl Collection {
             match item {
                 Item::Movie(movie) => {
                     movie_count += 1;
-                    for genre in movie.metadata.genres() {
+                    for genre in &movie.metadata.genres {
                         if !genre.is_empty() {
                             genres.insert(genre.clone());
                         }
                     }
-                    for studio in movie.metadata.studios() {
+                    for studio in &movie.metadata.studios {
                         if !studio.is_empty() {
                             studios.insert(studio.clone());
                         }
                     }
-                    let rating = movie.metadata.official_rating();
+                    let rating = &movie.metadata.official_rating;
                     if !rating.is_empty() {
                         official_ratings.insert(rating.to_string());
                     }
-                    let year = movie.metadata.year();
-                    if year != 0 {
-                        years.insert(year);
+                    if let Some(year) = movie.metadata.year {
+                        if year != 0 {
+                            years.insert(year);
+                        }
                     }
                 }
                 Item::Show(show) => {
@@ -99,23 +100,24 @@ impl Collection {
                     for season in &show.seasons {
                         episode_count += season.episodes.len();
                     }
-                    for genre in show.metadata.genres() {
+                    for genre in &show.metadata.genres {
                         if !genre.is_empty() {
                             genres.insert(genre.clone());
                         }
                     }
-                    for studio in show.metadata.studios() {
+                    for studio in &show.metadata.studios {
                         if !studio.is_empty() {
                             studios.insert(studio.clone());
                         }
                     }
-                    let rating = show.metadata.official_rating();
+                    let rating = &show.metadata.official_rating;
                     if !rating.is_empty() {
                         official_ratings.insert(rating.to_string());
                     }
-                    let year = show.metadata.year();
-                    if year != 0 {
-                        years.insert(year);
+                    if let Some(year) = show.metadata.year {
+                        if year != 0 {
+                            years.insert(year);
+                        }
                     }
                 }
                 _ => {}
@@ -139,10 +141,11 @@ impl Collection {
         let mut genre_count = HashMap::new();
 
         for item in &self.items {
+            let empty_genres = Vec::new();
             let genres = match item {
-                Item::Movie(movie) => movie.metadata.genres(),
-                Item::Show(show) => show.metadata.genres(),
-                _ => &[],
+                Item::Movie(movie) => &movie.metadata.genres,
+                Item::Show(show) => &show.metadata.genres,
+                _ => &empty_genres,
             };
 
             for genre in genres {

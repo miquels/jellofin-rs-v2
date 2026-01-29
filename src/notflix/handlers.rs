@@ -5,9 +5,7 @@ use axum::{
     Json,
 };
 use chrono::Datelike;
-use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{info, warn};
 use urlencoding::encode;
 
 use crate::collection::{CollectionRepo, Item as CollectionItem};
@@ -164,15 +162,15 @@ pub async fn genres_handler(
 }
 
 /// Helper: Copy collection item to API type
-fn copy_item(item: &CollectionItem, collection_id: &str) -> Item {
+fn copy_item(item: &CollectionItem, _collection_id: &str) -> Item {
     match item {
         CollectionItem::Movie(movie) => {
-            let premiered = movie.metadata.premiered()
-                .filter(|dt| dt.year() > 1900)
-                .map(|dt| dt.format("%Y-%m-%d").to_string());
+            let premiered = movie.metadata.premiered
+                .filter(|dt: &chrono::DateTime<chrono::Utc>| dt.year() > 1900)
+                .map(|dt: chrono::DateTime<chrono::Utc>| dt.format("%Y-%m-%d").to_string());
             
-            let studio = if !movie.metadata.studios().is_empty() {
-                Some(movie.metadata.studios()[0].clone())
+            let studio = if !movie.metadata.studios.is_empty() {
+                Some(movie.metadata.studios[0].clone())
             } else {
                 None
             };
@@ -188,23 +186,23 @@ fn copy_item(item: &CollectionItem, collection_id: &str) -> Item {
                 sort_name: Some(movie.sort_name.clone()),
                 nfo: ItemNfo {
                     id: movie.id.clone(),
-                    title: Some(movie.metadata.title().to_string()),
-                    plot: Some(movie.metadata.plot().to_string()),
-                    genre: Some(movie.metadata.genres().to_vec()),
+                    title: Some(movie.metadata.title.clone()),
+                    plot: Some(movie.metadata.plot.clone()),
+                    genre: Some(movie.metadata.genres.clone()),
                     premiered: premiered.clone(),
-                    mpaa: Some(movie.metadata.official_rating().to_string()),
+                    mpaa: Some(movie.metadata.official_rating.clone()),
                     aired: premiered,
                     studio,
-                    rating: Some(movie.metadata.rating()),
+                    rating: Some(movie.metadata.rating),
                 },
                 banner: if movie.banner.is_empty() { None } else { Some(movie.banner.clone()) },
                 fanart: if movie.fanart.is_empty() { None } else { Some(movie.fanart.clone()) },
                 folder: if movie.folder.is_empty() { None } else { Some(movie.folder.clone()) },
                 poster: if movie.poster.is_empty() { None } else { Some(escape_path(&movie.poster)) },
-                rating: Some(movie.metadata.rating()),
+                rating: Some(movie.metadata.rating),
                 votes: None,
-                genre: Some(movie.metadata.genres().to_vec()),
-                year: Some(movie.metadata.year()),
+                genre: Some(movie.metadata.genres.clone()),
+                year: movie.metadata.year,
                 video: Some(escape_path(&movie.file_name)),
                 thumb: None,
                 srtsubs: None,
@@ -215,12 +213,12 @@ fn copy_item(item: &CollectionItem, collection_id: &str) -> Item {
             }
         }
         CollectionItem::Show(show) => {
-            let premiered = show.metadata.premiered()
-                .filter(|dt| dt.year() > 1900)
-                .map(|dt| dt.format("%Y-%m-%d").to_string());
+            let premiered = show.metadata.premiered
+                .filter(|dt: &chrono::DateTime<chrono::Utc>| dt.year() > 1900)
+                .map(|dt: chrono::DateTime<chrono::Utc>| dt.format("%Y-%m-%d").to_string());
             
-            let studio = if !show.metadata.studios().is_empty() {
-                Some(show.metadata.studios()[0].clone())
+            let studio = if !show.metadata.studios.is_empty() {
+                Some(show.metadata.studios[0].clone())
             } else {
                 None
             };
@@ -236,23 +234,23 @@ fn copy_item(item: &CollectionItem, collection_id: &str) -> Item {
                 sort_name: Some(show.sort_name.clone()),
                 nfo: ItemNfo {
                     id: show.id.clone(),
-                    title: Some(show.metadata.title().to_string()),
-                    plot: Some(show.metadata.plot().to_string()),
-                    genre: Some(show.metadata.genres().to_vec()),
+                    title: Some(show.metadata.title.clone()),
+                    plot: Some(show.metadata.plot.clone()),
+                    genre: Some(show.metadata.genres.clone()),
                     premiered: premiered.clone(),
-                    mpaa: Some(show.metadata.official_rating().to_string()),
+                    mpaa: Some(show.metadata.official_rating.clone()),
                     aired: premiered,
                     studio,
-                    rating: Some(show.metadata.rating()),
+                    rating: Some(show.metadata.rating),
                 },
                 banner: if show.banner.is_empty() { None } else { Some(show.banner.clone()) },
                 fanart: if show.fanart.is_empty() { None } else { Some(show.fanart.clone()) },
                 folder: if show.folder.is_empty() { None } else { Some(show.folder.clone()) },
                 poster: if show.poster.is_empty() { None } else { Some(escape_path(&show.poster)) },
-                rating: Some(show.metadata.rating()),
+                rating: Some(show.metadata.rating),
                 votes: None,
-                genre: Some(show.metadata.genres().to_vec()),
-                year: Some(show.metadata.year()),
+                genre: Some(show.metadata.genres.clone()),
+                year: show.metadata.year,
                 video: None,
                 thumb: None,
                 srtsubs: None,
@@ -317,13 +315,13 @@ fn copy_season(season: &crate::collection::Season, do_nfo: bool) -> Season {
 /// Helper: Copy episode to API type
 fn copy_episode(episode: &crate::collection::Episode, do_nfo: bool) -> Episode {
     let nfo = if do_nfo {
-        let aired = episode.metadata.premiered()
-            .filter(|dt| dt.year() > 1900)
-            .map(|dt| dt.format("%Y-%m-%d").to_string());
+        let aired = episode.metadata.premiered
+            .filter(|dt: &chrono::DateTime<chrono::Utc>| dt.year() > 1900)
+            .map(|dt: chrono::DateTime<chrono::Utc>| dt.format("%Y-%m-%d").to_string());
         
         EpisodeNfo {
-            title: Some(episode.metadata.title().to_string()),
-            plot: Some(episode.metadata.plot().to_string()),
+            title: Some(episode.metadata.title.clone()),
+            plot: Some(episode.metadata.plot.clone()),
             season: Some(episode.season_no.to_string()),
             episode: Some(episode.episode_no.to_string()),
             aired,

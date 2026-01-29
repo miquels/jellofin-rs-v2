@@ -77,25 +77,25 @@ impl Search {
         for item in &collection.items {
             match item {
                 Item::Movie(movie) => {
-                    let genres_text = movie.metadata.genres().join(" ");
+                    let genres_text = movie.metadata.genres.join(" ");
                     
                     index_writer.add_document(doc!(
                         id_field => movie.id.clone(),
                         collection_id_field => collection.id.clone(),
                         name_field => movie.name.clone(),
-                        overview_field => movie.metadata.plot().to_string(),
+                        overview_field => movie.metadata.plot.clone(),
                         genres_field => genres_text,
                         item_type_field => "movie".to_string(),
                     )).map_err(|e| e.to_string())?;
                 }
                 Item::Show(show) => {
-                    let genres_text = show.metadata.genres().join(" ");
+                    let genres_text = show.metadata.genres.join(" ");
                     
                     index_writer.add_document(doc!(
                         id_field => show.id.clone(),
                         collection_id_field => collection.id.clone(),
                         name_field => show.name.clone(),
-                        overview_field => show.metadata.plot().to_string(),
+                        overview_field => show.metadata.plot.clone(),
                         genres_field => genres_text,
                         item_type_field => "show".to_string(),
                     )).map_err(|e| e.to_string())?;
@@ -107,7 +107,7 @@ impl Search {
                                 id_field => episode.id.clone(),
                                 collection_id_field => collection.id.clone(),
                                 name_field => episode.name.clone(),
-                                overview_field => episode.metadata.plot().to_string(),
+                                overview_field => episode.metadata.plot.clone(),
                                 genres_field => String::new(),
                                 item_type_field => "episode".to_string(),
                             )).map_err(|e| e.to_string())?;

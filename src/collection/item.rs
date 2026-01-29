@@ -192,6 +192,26 @@ pub enum Item {
     Episode(Episode),
 }
 
+impl Item {
+    pub fn id(&self) -> String {
+        match self {
+            Item::Movie(m) => m.id.clone(),
+            Item::Show(s) => s.id.clone(),
+            Item::Season(s) => s.id.clone(),
+            Item::Episode(e) => e.id.clone(),
+        }
+    }
+
+    pub fn name(&self) -> String {
+        match self {
+            Item::Movie(m) => m.name.clone(),
+            Item::Show(s) => s.name.clone(),
+            Item::Season(s) => s.name.clone(),
+            Item::Episode(e) => e.name.clone(),
+        }
+    }
+}
+
 /// ItemRef enum - for borrowing without ownership
 #[derive(Debug, Clone, Copy)]
 pub enum ItemRef<'a> {

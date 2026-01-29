@@ -1,7 +1,19 @@
 pub mod auth;
 pub mod handlers;
 pub mod types;
+pub mod jfitem;
+pub mod system;
+pub mod user;
 
 pub use auth::*;
 pub use handlers::*;
 pub use types::*;
+pub use jfitem::*;
+pub use system::*;
+pub use user::*;
+pub mod item;
+pub mod show;
+pub mod stream;
+pub use item::*;
+pub use show::*;
+pub use stream::*;
