@@ -63,10 +63,24 @@ pub async fn run(config_path: String) -> Result<(), Box<dyn std::error::Error>> 
     let image_resizer = Arc::new(ImageResizer::new(cache_dir)?);
     info!("Image resizer initialized");
 
-    // TODO: Initialize collections from config
-    // for collection_config in &config.collections {
-    //     collections.add_collection(...);
-    // }
+    // Initialize collections from config
+    for collection_config in &config.collections {
+        collections
+            .add_collection(
+                collection_config.name.clone(),
+                Some(collection_config.id.clone()),
+                &collection_config.collection_type,
+                collection_config.directory.clone(),
+                collection_config.hls_server.clone().unwrap_or_default(),
+            )
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    }
+
+    // Scan collections
+    collections.init();
+
+    // Start background background scan
+    collections.background();
 
     // Create application state
     let state = AppState {
