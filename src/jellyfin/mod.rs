@@ -26,6 +26,7 @@ pub use user::*;
 pub mod item;
 pub mod show;
 pub mod stream;
+pub use stream::*;
 pub use item::*;
 pub use show::*;
 pub mod userdata;

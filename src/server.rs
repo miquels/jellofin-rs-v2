@@ -194,6 +194,11 @@ fn build_router(state: AppState) -> Router {
                 // Search / Hints
                 .route("/Search/Hints", get(crate::jellyfin::search_hints))
                 // Show routes
+                .route("/Videos/{item}/stream", get(crate::jellyfin::video_stream_handler))
+                .route("/Videos/{item}/stream.{container}", get(crate::jellyfin::video_stream_handler))
+                .route("/videos/{item}/stream", get(crate::jellyfin::video_stream_handler))
+                .route("/videos/{item}/stream.{container}", get(crate::jellyfin::video_stream_handler))
+                .route("/MediaSegments/{item}", get(crate::jellyfin::media_segments_handler))
                 .route("/Shows/NextUp", get(crate::jellyfin::shows_next_up))
                 .route("/Shows/{id}/Seasons", get(crate::jellyfin::show_seasons))
                 .route("/Shows/{id}/Episodes", get(crate::jellyfin::show_episodes))
