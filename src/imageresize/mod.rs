@@ -47,12 +47,27 @@ impl ImageResizer {
 
         // Generate cache key
         let cache_key = self.generate_cache_key(source_path, width, height, quality);
-        let cache_path = self.cache_dir.join(&cache_key);
+
+        // Sharding logic: use first 2 chars of cache key
+        if cache_key.len() < 2 {
+            tracing::error!("Cache key too short: {}", cache_key);
+            return source_path.to_path_buf();
+        }
+
+        let prefix = &cache_key[0..2];
+        let shard_dir = self.cache_dir.join(prefix);
+        let cache_path = shard_dir.join(&cache_key);
 
         // Check if cached version exists
         if cache_path.exists() {
             tracing::info!("Cache hit: {}", cache_path.display());
             return cache_path;
+        }
+
+        // Ensure shard directory exists
+        if let Err(e) = fs::create_dir_all(&shard_dir) {
+            tracing::error!("Failed to create cache shard directory {}: {}", shard_dir.display(), e);
+            return source_path.to_path_buf(); // Return original if we can't allow caching
         }
 
         tracing::info!("Resizing/caching: {} -> {}", source_path.display(), cache_path.display());
@@ -65,6 +80,7 @@ impl ImageResizer {
             }
             Err(e) => {
                 tracing::error!("Failed to resize image {}: {}", source_path.display(), e);
+                // Attempt to cleanup partial file if needed, though File::create truncates
                 source_path.to_path_buf()
             }
         }
