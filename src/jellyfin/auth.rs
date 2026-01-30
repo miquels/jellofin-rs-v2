@@ -56,14 +56,7 @@ pub async fn authenticate_by_name(
     if let Some(mut db_user) = user.take() {
          // Verify password
         if !verify(&request.pw, &db_user.password).unwrap_or(false) {
-             // If auto-register is enabled, update password
-            if state.auto_register {
-                 let hashed_password = hash(&request.pw, DEFAULT_COST).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-                 db_user.password = hashed_password;
-                 user = Some(db_user);
-            } else {
-                return Err(StatusCode::UNAUTHORIZED);
-            }
+            return Err(StatusCode::UNAUTHORIZED);
         } else {
             user = Some(db_user);
         }
