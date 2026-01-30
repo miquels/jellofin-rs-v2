@@ -87,14 +87,7 @@ pub trait PlaylistRepo {
 pub async fn new_repository(db_type: &str, config: &crate::server::Config) -> Result<Box<dyn Repository>> {
     match db_type {
         "sqlite" => {
-            let filename = if let Some(ref dbdir) = config.dbdir {
-                // Legacy support for Dbdir
-                format!("{}/tink-items.db", dbdir)
-            } else if let Some(ref filename) = config.database.sqlite.filename {
-                filename.clone()
-            } else {
-                return Err(DatabaseError::NoConfiguration);
-            };
+            let filename = format!("{}/tink-items.db", config.dbdir);
 
             let repo = SqliteRepository::new(&filename).await?;
             Ok(Box::new(repo))

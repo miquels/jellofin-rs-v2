@@ -48,20 +48,25 @@ pub async fn run(config_path: String, debug: bool) -> Result<(), Box<dyn std::er
     info!("Configuration loaded successfully");
 
     // Initialize database
-    let db_path = config
-        .database
-        .path
-        .clone()
-        .unwrap_or_else(|| "jellofin.db".to_string());
-    let repo = Arc::new(SqliteRepository::new(&db_path).await?);
-    info!("Database initialized at {}", db_path);
+    let db_dir = config.dbdir.clone();
+    
+    // Create directory if it doesn't exist
+    if db_dir != "." {
+        std::fs::create_dir_all(&db_dir).map_err(|e| format!("Failed to create db dir '{}': {}", db_dir, e))?;
+    }
+
+    let db_path = std::path::Path::new(&db_dir).join("tink-items.db");
+    let db_path_str = db_path.to_str().ok_or("Invalid database path")?.to_string();
+
+    let repo = Arc::new(SqliteRepository::new(&db_path_str).await?);
+    info!("Database initialized at {}", db_path_str);
 
     // Initialize collection repository
     let collections = Arc::new(CollectionRepo::new());
     info!("Collection repository initialized");
 
     // Initialize image resizer
-    let cache_dir = PathBuf::from(config.cachedir.clone().unwrap_or_else(|| "./cache".to_string()));
+    let cache_dir = PathBuf::from(config.cachedir.clone());
     let image_resizer = Arc::new(ImageResizer::new(cache_dir)?);
     info!("Image resizer initialized");
 

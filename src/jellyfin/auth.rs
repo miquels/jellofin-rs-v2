@@ -53,7 +53,7 @@ pub async fn authenticate_by_name(
     let mut user = state.repo.get_user(&username).await.ok();
 
     // Check if user exists or needs creation
-    if let Some(mut db_user) = user.take() {
+    if let Some(db_user) = user.take() {
          // Verify password
         if !verify(&request.pw, &db_user.password).unwrap_or(false) {
             return Err(StatusCode::UNAUTHORIZED);

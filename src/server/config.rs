@@ -7,12 +7,8 @@ pub struct Config {
     pub listen: ListenConfig,
     #[serde(default)]
     pub appdir: Option<String>,
-    #[serde(default)]
-    pub cachedir: Option<String>,
-    #[serde(default)]
-    pub dbdir: Option<String>,
-    #[serde(default)]
-    pub database: DatabaseConfig,
+    pub cachedir: String,
+    pub dbdir: String,
     #[serde(default)]
     pub logfile: Option<String>,
     #[serde(default)]
@@ -27,7 +23,7 @@ impl Config {
         self.appdir.clone()
     }
 
-    pub fn cache_dir(&self) -> Option<String> {
+    pub fn cache_dir(&self) -> String {
         self.cachedir.clone()
     }
 
@@ -56,19 +52,7 @@ pub struct ListenConfig {
     pub tls_key: Option<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct DatabaseConfig {
-    #[serde(default)]
-    pub sqlite: SqliteConfig,
-    #[serde(default)]
-    pub path: Option<String>,
-}
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct SqliteConfig {
-    #[serde(default)]
-    pub filename: Option<String>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectionConfig {
