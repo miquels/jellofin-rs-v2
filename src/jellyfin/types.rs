@@ -371,6 +371,9 @@ pub struct BaseItemDto {
     pub studios: Option<Vec<StudioDto>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub genre_items: Option<Vec<GenreItem>>,
+    #[serde(rename = "EnableMediaSourceDisplay")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_media_source_display: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_specials_within_seasons: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -977,6 +980,7 @@ impl Default for BaseItemDto {
             people: None,
             studios: None,
             genre_items: None,
+            enable_media_source_display: None,
             display_specials_within_seasons: None,
             current_program: None,
             address: None,

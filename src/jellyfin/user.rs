@@ -66,6 +66,55 @@ pub async fn users_public() -> Json<Vec<User>> {
     Json(Vec::new())
 }
 
+// Helper to build a rich BaseItemDto for a collection
+fn build_collection_dto(collection: &crate::collection::Collection, server_id: &str) -> BaseItemDto {
+    let mut dto = BaseItemDto::default();
+    dto.name = collection.name.clone();
+    dto.sort_name = Some(collection.name.to_lowercase());
+    dto.id = collection.id.clone();
+    dto.server_id = server_id.to_string();
+    dto.item_type = "CollectionFolder".to_string();
+    
+    dto.is_folder = Some(true);
+    dto.play_access = Some("Full".to_string());
+    dto.location_type = Some("FileSystem".to_string());
+    dto.can_delete = Some(false);
+    dto.can_download = Some(true);
+    dto.date_created = Some(chrono::Utc::now()); // Placeholder
+    dto.premiere_date = Some(chrono::Utc::now()); // Placeholder
+    dto.enable_media_source_display = Some(true);
+    dto.path = Some("/collection".to_string()); // Dummy path
+    
+    // Map collection type
+    let ctype = match collection.collection_type {
+        crate::collection::CollectionType::Movies => "movies",
+        crate::collection::CollectionType::Shows => "tvshows",
+    };
+    dto.collection_type = Some(ctype.to_string());
+
+    // Calculate stats
+    // Note: details() iterates all items, which gives accurate counts/genres
+    let details = collection.details();
+    let child_count = match collection.collection_type {
+        crate::collection::CollectionType::Movies => details.movie_count,
+        crate::collection::CollectionType::Shows => details.show_count,
+    };
+    dto.child_count = Some(child_count as i32);
+    
+    dto.genres = Some(details.genres.clone());
+    
+    // Construct GenreItems
+    let genre_items: Vec<GenreItem> = details.genres.iter().map(|g| {
+        GenreItem {
+            name: g.clone(),
+            id: crate::idhash::id_hash(&format!("genre_{}", g)),
+        }
+    }).collect();
+    dto.genre_items = Some(genre_items);
+    
+    dto
+}
+
 /// GET /Users/{id}/Views - Get user views (libraries)
 pub async fn user_views(
     Extension(_token): Extension<model::AccessToken>,
@@ -76,21 +125,7 @@ pub async fn user_views(
     let mut items = Vec::new();
 
     for collection in collections {
-        let mut dto = BaseItemDto::default();
-        dto.name = collection.name.clone();
-        dto.id = collection.id.clone();
-        dto.server_id = state.server_id.clone();
-        dto.item_type = "CollectionFolder".to_string();
-        dto.collection_type = Some(collection.collection_type.as_str().to_string());
-
-        // Map collection type to Jellyfin foldering
-        let ctype = match collection.collection_type {
-            crate::collection::CollectionType::Movies => "movies",
-            crate::collection::CollectionType::Shows => "tvshows",
-        };
-        dto.collection_type = Some(ctype.to_string());
-
-        items.push(dto);
+        items.push(build_collection_dto(&collection, &state.server_id));
     }
 
     Json(QueryResult {
@@ -110,21 +145,7 @@ pub async fn user_views_query(
     let mut items = Vec::new();
 
     for collection in collections {
-        let mut dto = BaseItemDto::default();
-        dto.name = collection.name.clone();
-        dto.id = collection.id.clone();
-        dto.server_id = state.server_id.clone();
-        dto.item_type = "CollectionFolder".to_string();
-        dto.collection_type = Some(collection.collection_type.as_str().to_string());
-
-        // Map collection type to Jellyfin foldering
-        let ctype = match collection.collection_type {
-            crate::collection::CollectionType::Movies => "movies",
-            crate::collection::CollectionType::Shows => "tvshows",
-        };
-        dto.collection_type = Some(ctype.to_string());
-
-        items.push(dto);
+        items.push(build_collection_dto(&collection, &state.server_id));
     }
 
     Json(QueryResult {
