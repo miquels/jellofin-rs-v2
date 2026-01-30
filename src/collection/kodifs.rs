@@ -221,7 +221,18 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
                     created: chrono::Utc::now(),
                     file_name: format!("{}/{}", path.file_name().unwrap_or_default().to_str().unwrap_or_default(), file_name),
                     file_size: std::fs::metadata(file_path).ok()?.len() as i64,
-                    thumb: String::new(),          // TODO: Find thumbnail
+                    thumb: {
+                        let video_stem = std::path::Path::new(file_name).file_stem().and_then(|s| s.to_str()).unwrap_or(file_name);
+                        let mut thumb = find_image(path, &format!("{}-thumb", video_stem));
+                        if thumb.is_empty() {
+                            thumb = find_image(path, video_stem);
+                        }
+                        if !thumb.is_empty() {
+                             format!("{}/{}", path.file_name().unwrap_or_default().to_str().unwrap_or_default(), thumb)
+                        } else {
+                             String::new()
+                        }
+                    },
                     metadata: {
                          // Find NFO for episode (basename.nfo)
                          let nfo_path = file_path.with_extension("nfo");
