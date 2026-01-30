@@ -35,10 +35,18 @@ pub async fn items_query(
     let parent_id = query_params.get("parentId").cloned();
     let search_term = query_params.get("searchTerm").cloned();
     let recursive = query_params.get("recursive").map(|v| v == "true").unwrap_or(false);
+    let ids = query_params.get("ids");
 
     let mut items = Vec::new();
 
-    if let Some(ref pid) = parent_id {
+    if let Some(id_list) = ids {
+        // Direct ID lookup - bypass parent filters
+        for id in id_list.split(',') {
+            if let Ok(item) = make_jf_item_by_id(&state, &token.user_id, id).await {
+                items.push(item);
+            }
+        }
+    } else if let Some(ref pid) = parent_id {
         if search_term.is_none() {
             items = get_jf_items_by_parent_id(&state, &token.user_id, pid)
                 .await
