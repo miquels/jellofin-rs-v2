@@ -109,6 +109,64 @@ pub struct UserPolicy {
     pub blocked_tags: Vec<String>,
     #[serde(rename = "EnabledFolders")]
     pub enabled_folders: Vec<String>,
+    #[serde(rename = "EnableCollectionManagement")]
+    pub enable_collection_management: bool,
+    #[serde(rename = "EnableSubtitleManagement")]
+    pub enable_subtitle_management: bool,
+    #[serde(rename = "EnableLyricManagement")]
+    pub enable_lyric_management: bool,
+    #[serde(rename = "AllowedTags")]
+    pub allowed_tags: Vec<String>,
+    #[serde(rename = "EnableUserPreferenceAccess")]
+    pub enable_user_preference_access: bool,
+    #[serde(rename = "AccessSchedules")]
+    pub access_schedules: Vec<serde_json::Value>,
+    #[serde(rename = "BlockUnratedItems")]
+    pub block_unrated_items: Vec<String>,
+    #[serde(rename = "EnableRemoteControlOfOtherUsers")]
+    pub enable_remote_control_of_other_users: bool,
+    #[serde(rename = "EnableSharedDeviceControl")]
+    pub enable_shared_device_control: bool,
+    #[serde(rename = "EnableLiveTvManagement")]
+    pub enable_live_tv_management: bool,
+    #[serde(rename = "EnableLiveTvAccess")]
+    pub enable_live_tv_access: bool,
+    #[serde(rename = "EnablePlaybackRemuxing")]
+    pub enable_playback_remuxing: bool,
+    #[serde(rename = "ForceRemoteSourceTranscoding")]
+    pub force_remote_source_transcoding: bool,
+    #[serde(rename = "EnableContentDeletionFromFolders")]
+    pub enable_content_deletion_from_folders: Vec<String>,
+    #[serde(rename = "EnableSyncTranscoding")]
+    pub enable_sync_transcoding: bool,
+    #[serde(rename = "EnableMediaConversion")]
+    pub enable_media_conversion: bool,
+    #[serde(rename = "EnabledDevices")]
+    pub enabled_devices: Vec<String>,
+    #[serde(rename = "EnabledChannels")]
+    pub enabled_channels: Vec<String>,
+    #[serde(rename = "EnableAllChannels")]
+    pub enable_all_channels: bool,
+    #[serde(rename = "InvalidLoginAttemptCount")]
+    pub invalid_login_attempt_count: i32,
+    #[serde(rename = "LoginAttemptsBeforeLockout")]
+    pub login_attempts_before_lockout: i32,
+    #[serde(rename = "MaxActiveSessions")]
+    pub max_active_sessions: i32,
+    #[serde(rename = "EnablePublicSharing")]
+    pub enable_public_sharing: bool,
+    #[serde(rename = "BlockedMediaFolders")]
+    pub blocked_media_folders: Vec<String>,
+    #[serde(rename = "BlockedChannels")]
+    pub blocked_channels: Vec<String>,
+    #[serde(rename = "RemoteClientBitrateLimit")]
+    pub remote_client_bitrate_limit: i32,
+    #[serde(rename = "AuthenticationProviderId")]
+    pub authentication_provider_id: String,
+    #[serde(rename = "PasswordResetProviderId")]
+    pub password_reset_provider_id: String,
+    #[serde(rename = "SyncPlayAccess")]
+    pub sync_play_access: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -894,6 +952,35 @@ impl Default for UserPolicy {
             enable_all_folders: true,
             blocked_tags: Vec::new(),
             enabled_folders: Vec::new(),
+            enable_collection_management: false,
+            enable_subtitle_management: false,
+            enable_lyric_management: false,
+            allowed_tags: Vec::new(),
+            enable_user_preference_access: false,
+            access_schedules: Vec::new(),
+            block_unrated_items: Vec::new(),
+            enable_remote_control_of_other_users: false,
+            enable_shared_device_control: false,
+            enable_live_tv_management: false,
+            enable_live_tv_access: false,
+            enable_playback_remuxing: false,
+            force_remote_source_transcoding: false,
+            enable_content_deletion_from_folders: Vec::new(),
+            enable_sync_transcoding: false,
+            enable_media_conversion: false,
+            enabled_devices: Vec::new(),
+            enabled_channels: Vec::new(),
+            enable_all_channels: false,
+            invalid_login_attempt_count: 0,
+            login_attempts_before_lockout: 0,
+            max_active_sessions: 0,
+            enable_public_sharing: false,
+            blocked_media_folders: Vec::new(),
+            blocked_channels: Vec::new(),
+            remote_client_bitrate_limit: 0,
+            authentication_provider_id: "DefaultAuthenticationProvider".to_string(),
+            password_reset_provider_id: "DefaultPasswordResetProvider".to_string(),
+            sync_play_access: "CreateAndJoinGroups".to_string(),
         }
     }
 }

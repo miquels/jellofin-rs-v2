@@ -48,3 +48,9 @@ pub async fn plugins() -> Json<Vec<serde_json::Value>> {
 pub async fn socket_handler() -> axum::http::StatusCode {
     axum::http::StatusCode::NOT_FOUND
 }
+
+/// GET / - Root handler
+pub async fn root_handler() -> impl axum::response::IntoResponse {
+    use axum::response::Html;
+    Html("<!DOCTYPE html><html><head><title>Jellofin Server</title></head><body><h1>Jellofin Server</h1></body></html>")
+}
