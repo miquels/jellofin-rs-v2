@@ -39,5 +39,7 @@ pub mod person;
 pub use person::*;
 pub mod library;
 pub use library::*;
+pub mod image;
+pub use image::*;
 pub mod localization;
 pub use localization::*;

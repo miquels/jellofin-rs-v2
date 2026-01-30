@@ -146,6 +146,8 @@ fn build_router(state: AppState) -> Router {
         collections: state.collections.clone(),
         server_id: server_id.clone(),
         server_name: state.config.server_name().unwrap_or_else(|| "Jellofin-rs".to_string()),
+        image_resizer: state.image_resizer.clone(),
+        config: state.config.clone(),
     };
 
     // Notflix API routes (no auth required)
@@ -171,6 +173,12 @@ fn build_router(state: AppState) -> Router {
         .route("/socket", get(crate::jellyfin::socket_handler))
         .route("/", get(crate::jellyfin::root_handler))
         .with_state(jellyfin_auth_state.clone());
+    
+    // Jellyfin images (Public, uses JellyfinState)
+    let jellyfin_images_public = Router::new()
+        .route("/Items/{item}/Images/{type}", get(crate::jellyfin::get_item_image))
+        .route("/Items/{item}/Images/{type}/{index}", get(crate::jellyfin::get_item_image_indexed))
+        .with_state(jellyfin_state.clone());
 
     // Jellyfin system and user routes (some public, some protected)
     let jellyfin_api = Router::new()
@@ -199,6 +207,7 @@ fn build_router(state: AppState) -> Router {
                 .route("/Items/Counts", get(crate::jellyfin::items_counts))
                 .route("/Items/Suggestions", get(crate::jellyfin::items_suggestions))
                 .route("/Items/Resume", get(crate::jellyfin::items_resume))
+                .route("/UserItems/Resume", get(crate::jellyfin::items_resume)) // Alias for legacy/specific clients
                 .route("/Items/{item}", get(crate::jellyfin::item_details))
                 .route("/Items/{item}/Similar", get(crate::jellyfin::items_similar))
                 .route("/Items/{item}/Ancestors", get(crate::jellyfin::item_ancestors))
@@ -331,6 +340,7 @@ fn build_router(state: AppState) -> Router {
         .route("/robots.txt", get(robots_handler))
         .merge(notflix_routes)
         .merge(jellyfin_public)
+        .merge(jellyfin_images_public)
         .merge(jellyfin_api)
         // Apply global middleware
         .layer(mw::from_fn(middleware::normalize_path_middleware))

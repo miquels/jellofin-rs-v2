@@ -9,6 +9,8 @@ pub struct JellyfinState {
     pub collections: Arc<CollectionRepo>,
     pub server_id: String,
     pub server_name: String,
+    pub image_resizer: Arc<crate::imageresize::ImageResizer>,
+    pub config: Arc<crate::server::Config>,
 }
 
 /// Helper: Make User from database model
