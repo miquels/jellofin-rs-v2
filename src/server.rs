@@ -185,6 +185,7 @@ fn build_router(state: AppState) -> Router {
                 .route("/Users/Me", get(crate::jellyfin::users_me))
                 .route("/Users/{id}", get(crate::jellyfin::users_by_id))
                 .route("/Users/{id}/Views", get(crate::jellyfin::user_views))
+                .route("/UserViews", get(crate::jellyfin::user_views_query))
                 .route("/Users/Public", get(crate::jellyfin::users_public))
                 .route("/Plugins", get(crate::jellyfin::plugins))
                 .route(

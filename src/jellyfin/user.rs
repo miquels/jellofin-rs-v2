@@ -2,11 +2,17 @@ use super::jellyfin::{make_user, JellyfinState};
 use super::types::*;
 use crate::database::model;
 use axum::{
-    extract::{Path as AxumPath, State},
+    extract::{Path as AxumPath, Query, State},
     http::StatusCode,
     response::Json,
     Extension,
 };
+
+#[derive(serde::Deserialize)]
+pub struct UserViewsQuery {
+    #[serde(rename = "userId")]
+    pub user_id: Option<String>,
+}
 
 /// GET /Users - Get all users (returns current user only)
 pub async fn users_all(
@@ -65,6 +71,40 @@ pub async fn user_views(
     Extension(_token): Extension<model::AccessToken>,
     State(state): State<JellyfinState>,
     AxumPath(_user_id): AxumPath<String>,
+) -> Json<QueryResult<BaseItemDto>> {
+    let collections = state.collections.get_collections();
+    let mut items = Vec::new();
+
+    for collection in collections {
+        let mut dto = BaseItemDto::default();
+        dto.name = collection.name.clone();
+        dto.id = collection.id.clone();
+        dto.server_id = state.server_id.clone();
+        dto.item_type = "CollectionFolder".to_string();
+        dto.collection_type = Some(collection.collection_type.as_str().to_string());
+
+        // Map collection type to Jellyfin foldering
+        let ctype = match collection.collection_type {
+            crate::collection::CollectionType::Movies => "movies",
+            crate::collection::CollectionType::Shows => "tvshows",
+        };
+        dto.collection_type = Some(ctype.to_string());
+
+        items.push(dto);
+    }
+
+    Json(QueryResult {
+        total_record_count: items.len() as i32,
+        start_index: 0,
+        items,
+    })
+}
+
+/// GET /UserViews - Get user views (libraries) with query param
+pub async fn user_views_query(
+    Extension(_token): Extension<model::AccessToken>,
+    State(state): State<JellyfinState>,
+    Query(_query): Query<UserViewsQuery>,
 ) -> Json<QueryResult<BaseItemDto>> {
     let collections = state.collections.get_collections();
     let mut items = Vec::new();
