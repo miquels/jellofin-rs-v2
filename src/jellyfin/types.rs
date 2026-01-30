@@ -398,6 +398,9 @@ pub struct BaseItemDto {
     pub album_primary_image_tag: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub series_primary_image_tag: Option<String>,
+    #[serde(rename = "DisplayPreferencesId")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_preferences_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub album_artist: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -993,6 +996,7 @@ impl Default for BaseItemDto {
             album_id: None,
             album_primary_image_tag: None,
             series_primary_image_tag: None,
+            display_preferences_id: None,
             album_artist: None,
             album_artists: None,
             season_id: None,

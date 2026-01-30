@@ -71,9 +71,15 @@ fn build_collection_dto(collection: &crate::collection::Collection, server_id: &
     let mut dto = BaseItemDto::default();
     dto.name = collection.name.clone();
     dto.sort_name = Some(collection.name.to_lowercase());
-    dto.id = collection.id.clone();
+    // Prefix ID with collection_ to match Go server behavior
+    dto.id = format!("collection_{}", collection.id);
     dto.server_id = server_id.to_string();
     dto.item_type = "CollectionFolder".to_string();
+    
+    // Add Etag and DisplayPreferencesId
+    dto.etag = Some(crate::idhash::id_hash(&format!("etag_{}", collection.id)));
+    dto.display_preferences_id = Some(format!("dp_{}", collection.id));
+    dto.primary_image_aspect_ratio = Some(1.7777777777777777); // Standard 16:9
     
     dto.is_folder = Some(true);
     dto.play_access = Some("Full".to_string());
@@ -107,7 +113,7 @@ fn build_collection_dto(collection: &crate::collection::Collection, server_id: &
     let genre_items: Vec<GenreItem> = details.genres.iter().map(|g| {
         GenreItem {
             name: g.clone(),
-            id: crate::idhash::id_hash(&format!("genre_{}", g)),
+            id: format!("genre_{}", crate::idhash::id_hash(g)), // Match Go format "genre_HASH" if possible, but hash is fine
         }
     }).collect();
     dto.genre_items = Some(genre_items);
