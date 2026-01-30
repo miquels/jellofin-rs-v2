@@ -45,6 +45,8 @@ pub struct User {
     pub configuration: UserConfiguration,
     #[serde(rename = "Policy")]
     pub policy: UserPolicy,
+    #[serde(rename = "PrimaryImageTag")]
+    pub primary_image_tag: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -67,6 +69,14 @@ pub struct UserConfiguration {
     pub display_missing_episodes: bool,
     #[serde(rename = "EnableNextEpisodeAutoPlay")]
     pub enable_next_episode_auto_play: bool,
+    #[serde(rename = "AudioLanguagePreference")]
+    pub audio_language_preference: Option<String>,
+    #[serde(rename = "RememberAudioSelections")]
+    pub remember_audio_selections: bool,
+    #[serde(rename = "RememberSubtitleSelections")]
+    pub remember_subtitle_selections: bool,
+    #[serde(rename = "HidePlayedInLatest")]
+    pub hide_played_in_latest: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -675,6 +685,10 @@ impl Default for UserConfiguration {
             play_default_audio_track: true,
             display_missing_episodes: false,
             enable_next_episode_auto_play: true,
+            audio_language_preference: None,
+            remember_audio_selections: true,
+            remember_subtitle_selections: true,
+            hide_played_in_latest: true,
         }
     }
 }

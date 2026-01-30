@@ -300,6 +300,7 @@ fn make_user(user: &model::User, server_id: &str) -> User {
         last_activity_date: user.last_used,
         configuration: UserConfiguration::default(),
         policy: UserPolicy::default(),
+        primary_image_tag: None,
     }
 }
 
