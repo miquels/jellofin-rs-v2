@@ -14,6 +14,7 @@ use crate::database::{model, Repository};
 use crate::idhash::id_hash;
 
 use super::types::*;
+use super::jellyfin::make_user;
 
 static AUTH_HEADER_REGEX: OnceLock<Regex> = OnceLock::new();
 
@@ -279,23 +280,7 @@ fn make_session_info(token: &model::AccessToken, username: &str, server_id: &str
     }
 }
 
-/// Make User response from database user
-fn make_user(user: &model::User, server_id: &str) -> User {
-    User {
-        name: user.username.clone(),
-        server_id: server_id.to_string(),
-        id: user.id.clone(),
-        has_password: true,
-        has_configured_password: true,
-        has_configured_easy_password: false,
-        enable_auto_login: false,
-        last_login_date: user.last_login,
-        last_activity_date: user.last_used,
-        configuration: UserConfiguration::default(),
-        policy: UserPolicy::default(),
-        primary_image_tag: None,
-    }
-}
+
 
 /// GET /QuickConnect/Enabled
 pub async fn quick_connect_enabled() -> Json<bool> {
