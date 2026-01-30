@@ -73,15 +73,23 @@ fn build_collection_dto(collection: &crate::collection::Collection, server_id: &
     dto.sort_name = Some(collection.name.to_lowercase());
     // Prefix ID with collection_ to match Go server behavior
     dto.id = format!("collection_{}", collection.id);
+    // Use a derived root ID
+    dto.parent_id = Some(format!("root_{}", server_id));
     dto.server_id = server_id.to_string();
     dto.item_type = "CollectionFolder".to_string();
+    dto.media_type = Some("Unknown".to_string());
     
     // Add Etag and DisplayPreferencesId
     dto.etag = Some(crate::idhash::id_hash(&format!("etag_{}", collection.id)));
     dto.display_preferences_id = Some(format!("dp_{}", collection.id));
     dto.primary_image_aspect_ratio = Some(1.7777777777777777); // Standard 16:9
+    dto.provider_ids = Some(std::collections::HashMap::new()); // Empty object {}
     
     dto.is_folder = Some(true);
+    dto.is_hd = Some(false);
+    dto.is_4k = Some(false);
+    dto.lock_data = Some(false);
+    
     dto.play_access = Some("Full".to_string());
     dto.location_type = Some("FileSystem".to_string());
     dto.can_delete = Some(false);

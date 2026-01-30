@@ -402,6 +402,12 @@ pub struct BaseItemDto {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_preferences_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub lock_data: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locked_fields: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub album_artist: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub album_artists: Option<Vec<ArtistItem>>,
@@ -997,6 +1003,9 @@ impl Default for BaseItemDto {
             album_primary_image_tag: None,
             series_primary_image_tag: None,
             display_preferences_id: None,
+            lock_data: None,
+            tags: None,
+            locked_fields: None,
             album_artist: None,
             album_artists: None,
             season_id: None,
