@@ -157,7 +157,7 @@ pub fn convert_movie_to_dto(movie: &Movie, server_id: &str, user_data: Option<&U
                 .metadata
                 .genres
                 .iter()
-                .map(|g| GenreItem {
+                .map(|g| NameGuidPair {
                     name: g.clone(),
                     id: crate::idhash::id_hash(g),
                 })
@@ -172,7 +172,7 @@ pub fn convert_movie_to_dto(movie: &Movie, server_id: &str, user_data: Option<&U
                 .metadata
                 .studios
                 .iter()
-                .map(|s| StudioDto {
+                .map(|s| NameGuidPair {
                     name: s.clone(),
                     id: crate::idhash::id_hash(s),
                 })
@@ -259,7 +259,7 @@ pub fn convert_show_to_dto(show: &Show, server_id: &str, user_data: Option<&User
             show.metadata
                 .genres
                 .iter()
-                .map(|g| GenreItem {
+                .map(|g| NameGuidPair {
                     name: g.clone(),
                     id: crate::idhash::id_hash(g),
                 })

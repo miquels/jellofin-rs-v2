@@ -319,7 +319,7 @@ pub async fn item_filters2(
     let genres = details
         .genres
         .into_iter()
-        .map(|g| GenreItem {
+        .map(|g| NameGuidPair {
             name: g.clone(),
             id: crate::idhash::id_hash(&g),
         })

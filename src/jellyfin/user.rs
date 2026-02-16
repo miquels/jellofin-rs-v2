@@ -118,8 +118,8 @@ fn build_collection_dto(collection: &crate::collection::Collection, server_id: &
     dto.genres = Some(details.genres.clone());
     
     // Construct GenreItems
-    let genre_items: Vec<GenreItem> = details.genres.iter().map(|g| {
-        GenreItem {
+    let genre_items: Vec<NameGuidPair> = details.genres.iter().map(|g| {
+        NameGuidPair {
             name: g.clone(),
             id: format!("genre_{}", crate::idhash::id_hash(g)), // Match Go format "genre_HASH" if possible, but hash is fine
         }
