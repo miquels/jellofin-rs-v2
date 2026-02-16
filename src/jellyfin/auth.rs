@@ -14,7 +14,7 @@ use crate::database::{model, Repository};
 use crate::idhash::id_hash;
 
 use super::types::*;
-use super::jellyfin::make_user;
+use super::user::make_user;
 
 static AUTH_HEADER_REGEX: OnceLock<Regex> = OnceLock::new();
 
