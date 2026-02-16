@@ -535,7 +535,7 @@ pub struct ExternalUrl {
     pub url: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct MediaSourceInfo {
     pub protocol: String,
@@ -586,6 +586,26 @@ pub struct MediaSourceInfo {
     pub default_audio_stream_index: Option<i32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_subtitle_stream_index: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub etag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub direct_stream_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub media_attachments: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub read_at_native_framerate: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_segments: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_dts: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore_index: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gen_pts_input: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub supports_probing: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -651,6 +671,25 @@ pub struct MediaStream {
     pub pixel_format: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub level: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub codec_tag: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_anamorphic: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_range: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub video_range_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audio_spatial_format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub localized_default: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub localized_external: Option<String>,
+    #[serde(rename = "IsAVC")]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_avc: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_hearing_impaired: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
