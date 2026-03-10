@@ -324,6 +324,8 @@ pub struct ItemCountResponse {
     pub item_count: i32,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "PascalCase")]
 pub struct PlaybackInfoResponse {
     pub media_sources: Vec<MediaSourceInfo>,
     pub play_session_id: String,

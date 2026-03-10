@@ -1069,7 +1069,7 @@ pub fn make_jf_userdata(
 }
 
 /// make_media_source creates the media source info for an item.
-fn make_media_source(
+pub(super) fn make_media_source(
     item_id: &str,
     file_name: &str,
     file_size: i64,

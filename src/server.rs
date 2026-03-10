@@ -170,6 +170,7 @@ fn build_router(state: AppState) -> Router {
         .route("/QuickConnect/Initiate", post(crate::jellyfin::quick_connect_initiate))
         .route("/QuickConnect/Connect", get(crate::jellyfin::quick_connect_connect))
         .route("/Users/AuthenticateByName", post(crate::jellyfin::authenticate_by_name))
+        .route("/Users/authenticatebyname", post(crate::jellyfin::authenticate_by_name))
         .route("/socket", get(crate::jellyfin::socket_handler))
         .route("/", get(crate::jellyfin::root_handler))
         .with_state(jellyfin_auth_state.clone());
@@ -194,7 +195,7 @@ fn build_router(state: AppState) -> Router {
                 .route("/Devices/Info", get(crate::jellyfin::devices_info))
                 .route("/Devices/Options", get(crate::jellyfin::devices_options))
                 // Display preferences.
-                .route("/DisplayPreferences/usersettings", get(crate::jellyfin::display_preferences))
+                .route("/DisplayPreferences/usersettings", get(crate::jellyfin::display_preferences).post(crate::jellyfin::display_preferences))
                 // Genre metadata.
                 .route("/Genres", get(crate::jellyfin::genres_all))
                 .route("/Genres/{name}", get(crate::jellyfin::genre_details))
@@ -204,16 +205,13 @@ fn build_router(state: AppState) -> Router {
                 .route("/Items/Latest", get(crate::jellyfin::items_latest))
                 .route("/Items/Resume", get(crate::jellyfin::items_resume))
                 .route("/Items/Suggestions", get(crate::jellyfin::items_suggestions))
-                .route("/Items/{item}", get(crate::jellyfin::item_details))
+                .route("/Items/Filters", get(crate::jellyfin::item_filters))
+                .route("/Items/Filters2", get(crate::jellyfin::item_filters2))
+                .route("/Items/{item}", get(crate::jellyfin::item_details).delete(crate::jellyfin::items_delete))
                 .route("/Items/{item}/Ancestors", get(crate::jellyfin::item_ancestors))
+                .route("/Items/{item}/PlaybackInfo", get(crate::jellyfin::items_playback_info).post(crate::jellyfin::items_playback_info))
                 .route("/Items/{item}/Similar", get(crate::jellyfin::items_similar))
-                // TODO .route("/Items/{item}/PlaybackInfo", get(crate::jellyfin::item_playbackinfo))
-                // TODO .route("/Items/{item}/SpecialFeatures", get(crate::jellyfin::item_special_features))
-                // TODO .route("/Items/{item}/ThemeSongs", get(crate::jellyfin::item_themesongs))
-                // TODO .route("/Items/{item}/Images/{image_type}", get(super::item::get_image))
-                // TODO .route("/Items/{item}/Images/{image_type}/{index}", get(super::item::get_image_indexed))
-                // TODO .route("/Items/Filters", get(crate::jellyfin::item_filters))
-                // TODO .route("/Items/Filters2", get(crate::jellyfin::item_filters2))
+                .route("/Items/{item}/SpecialFeatures", get(crate::jellyfin::items_special_features))
                 // Library routes
                 .route("/Library/VirtualFolders", get(crate::jellyfin::library_virtual_folders))
                 // Localization routes
@@ -244,8 +242,8 @@ fn build_router(state: AppState) -> Router {
                 .route("/Search/Hints", get(crate::jellyfin::search_hints))
                 // Sessions.
                 .route("/Sessions", get(crate::jellyfin::sessions))
-                .route("/Sessions/Capabilities", post(crate::jellyfin::sessions_capabilities))
-                .route("/Sessions/Capabilities/Full", post(crate::jellyfin::sessions_capabilities_full))
+                .route("/Sessions/Capabilities", get(crate::jellyfin::sessions_capabilities).post(crate::jellyfin::sessions_capabilities))
+                .route("/Sessions/Capabilities/Full", get(crate::jellyfin::sessions_capabilities_full).post(crate::jellyfin::sessions_capabilities_full))
                 .route("/Sessions/Playing", post(crate::jellyfin::sessions_playing))
                 .route("/Sessions/Playing/Progress", post(crate::jellyfin::sessions_playing_progress))
                 .route("/Sessions/Playing/Stopped", post(crate::jellyfin::sessions_playing_stopped))
@@ -266,6 +264,7 @@ fn build_router(state: AppState) -> Router {
                 .route("/Users/Public", get(crate::jellyfin::users_public))
                 .route("/Users/{id}", get(crate::jellyfin::users_by_id))
                 .route("/Users/{id}/Views", get(crate::jellyfin::user_views))
+                .route("/Users/{id}/GroupingOptions", get(crate::jellyfin::user_grouping_options))
                 // TODO .route("/Users/{id}/Images/{image_type}", get(super::user::get_user_image))
                 .route("/Users/{user}/FavoriteItems/{item}", post(crate::jellyfin::user_favorite_items_post))
                 .route("/Users/{user}/FavoriteItems/{item}", delete(crate::jellyfin::user_favorite_items_delete))
