@@ -10,6 +10,7 @@ use axum::{
     Extension, Json,
 };
 use serde::Deserialize;
+use tracing::error;
 
 #[derive(Deserialize)]
 pub struct CreatePlaylistQuery {
@@ -69,7 +70,16 @@ pub async fn create_playlist(
             }),
         )
             .into_response(),
-        Err(_) => apierror(StatusCode::INTERNAL_SERVER_ERROR, "Failed to create playlist").into_response(),
+        Err(e) => {
+            error!("Failed to create playlist '{}' for user '{}': {}", name, user_id, e);
+            (
+                StatusCode::OK,
+                Json(CreatePlaylistResponse {
+                    id: String::new(),
+                }),
+            )
+                .into_response()
+        }
     }
 }
 
