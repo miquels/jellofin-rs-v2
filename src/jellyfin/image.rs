@@ -147,30 +147,30 @@ async fn get_image_common(
 fn find_image_path(collections: &CollectionRepo, item_id: &str, image_type: &str) -> Option<PathBuf> {
     let (collection, item) = collections.get_item_by_id(item_id)?;
 
-    let image_filename = match image_type {
-        "Primary" | "Poster" => match &item {
+    let image_filename = match image_type.to_lowercase().as_str() {
+        "primary" | "poster" => match &item {
             Item::Movie(m) => &m.poster,
             Item::Show(s) => &s.poster,
             Item::Season(s) => s.poster(),
             Item::Episode(e) => &e.thumb,
         },
-        "Backdrop" | "Fanart" => match &item {
+        "backdrop" | "fanart" => match &item {
             Item::Movie(m) => &m.fanart,
             Item::Show(s) => &s.fanart,
             Item::Season(s) => &s.fanart,
             Item::Episode(_) => "",
         },
-        "Banner" => match &item {
+        "banner" => match &item {
             Item::Movie(m) => &m.banner,
             Item::Show(s) => &s.banner,
             Item::Season(s) => &s.banner,
             Item::Episode(_) => "",
         },
-        "Thumb" => match &item {
+        "thumb" => match &item {
             Item::Episode(e) => &e.thumb,
             _ => "",
         },
-        "Logo" => match &item {
+        "logo" => match &item {
             Item::Show(s) => &s.logo,
             _ => "",
         },
