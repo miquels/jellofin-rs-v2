@@ -367,28 +367,44 @@ pub struct BaseItemDto {
     pub is_4k: bool,
     pub has_subtitles: bool,
 
-    // Arrays, always serialize even if empty.
-    pub album_artists: Vec<NameGuidPair>,
-    pub artist_items: Vec<NameGuidPair>,
-    pub artists: Vec<String>,
-    pub backdrop_image_tags: Vec<String>,
-    pub chapters: Vec<ChapterInfo>,
-    pub external_urls: Vec<ExternalUrl>,
+    // Arrays, always serialize even if empty (matches Go: no omitempty).
     pub genre_items: Vec<NameGuidPair>,
     pub genres: Vec<String>,
     pub locked_fields: Vec<String>,
-    pub media_sources: Vec<MediaSourceInfo>,
-    pub media_streams: Vec<MediaStream>,
     pub people: Vec<BaseItemPerson>,
-    pub production_locations: Vec<String>,
-    pub screenshot_image_tags: Vec<String>,
     pub studios: Vec<NameGuidPair>,
-    pub taglines: Vec<String>,
     pub tags: Vec<String>,
 
-    // Objects, always serialize even if empty.
+    // Arrays, skip when empty (matches Go: omitempty).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub album_artists: Vec<NameGuidPair>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub artist_items: Vec<NameGuidPair>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub artists: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub backdrop_image_tags: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub chapters: Vec<ChapterInfo>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub external_urls: Vec<ExternalUrl>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub media_sources: Vec<MediaSourceInfo>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub media_streams: Vec<MediaStream>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub production_locations: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub screenshot_image_tags: Vec<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub taglines: Vec<String>,
+
+    // Objects, skip when empty (matches Go: omitempty / pointer).
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub image_blur_hashes: HashMap<String, HashMap<String, String>>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub image_tags: HashMap<String, String>,
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub provider_ids: HashMap<String, String>,
 
     // Optional Booleans.
