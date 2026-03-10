@@ -194,7 +194,7 @@ fn build_router(state: AppState) -> Router {
                 .route("/Devices/Info", get(crate::jellyfin::devices_info))
                 .route("/Devices/Options", get(crate::jellyfin::devices_options))
                 // Display preferences.
-                // TODO .route("/DisplayPreferences/usersettings", get(super::system::display_preferences))
+                .route("/DisplayPreferences/usersettings", get(crate::jellyfin::display_preferences))
                 // Genre metadata.
                 .route("/Genres", get(crate::jellyfin::genres_all))
                 .route("/Genres/{name}", get(crate::jellyfin::genre_details))
@@ -292,7 +292,7 @@ fn build_router(state: AppState) -> Router {
                 .route("/videos/{item}/stream.{container}", get(crate::jellyfin::video_stream_handler))
                 // Legacy/Alias Routes
                 .route("/UserViews", get(crate::jellyfin::user_views_query))
-                // TODO .route("/UserViews/GroupingOptions", get(super::user::get_grouping_options))
+                .route("/UserViews/GroupingOptions", get(crate::jellyfin::user_grouping_options))
                 .route("/UserItems/Resume", get(crate::jellyfin::items_resume)) // Alias for legacy/specific clients
                 .route("/UserItems/{item}/UserData", get(crate::jellyfin::users_item_userdata_simple))
                 // TODO .route("/UserItems/{item}/UserData", post(crate::jellyfin::users_item_userdata_simple))

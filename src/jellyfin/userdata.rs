@@ -7,11 +7,11 @@ use chrono::Utc;
 use tracing::info;
 
 use super::jellyfin::JellyfinState;
-use super::jfitem::*;
+use super::jfitem2::*;
 use super::types::*;
 use crate::database::{AccessToken, UserData as DbUserData};
 
-const TICS_TO_SECONDS: i64 = 10_000_000;
+const TICKS_TO_SECONDS: i64 = 10_000_000;
 
 /// GET /Users/{user}/Items/{item}/UserData
 /// GET /UserItems/{item}/UserData
@@ -20,7 +20,6 @@ pub async fn users_item_userdata(
     State(state): State<JellyfinState>,
     Path(params): Path<(String, String)>,
 ) -> Json<UserItemDataDto> {
-    let _user_id = &params.0; // We use token.user_id for security
     let item_id = &params.1;
     let internal_id = trim_prefix(item_id);
 
@@ -28,16 +27,9 @@ pub async fn users_item_userdata(
         .repo
         .get_user_data(&token.user_id, internal_id)
         .await
-        .unwrap_or_else(|_| DbUserData {
-            position: 0,
-            played_percentage: 0,
-            play_count: 0,
-            favorite: false,
-            played: false,
-            timestamp: Utc::now(),
-        });
+        .ok();
 
-    Json(make_jf_user_data(&playstate, item_id))
+    Json(make_jf_userdata(&token.user_id, item_id, playstate.as_ref()))
 }
 
 // Support for /UserItems/{item}/UserData which only has one path param
@@ -52,16 +44,9 @@ pub async fn users_item_userdata_simple(
         .repo
         .get_user_data(&token.user_id, internal_id)
         .await
-        .unwrap_or_else(|_| DbUserData {
-            position: 0,
-            played_percentage: 0,
-            play_count: 0,
-            favorite: false,
-            played: false,
-            timestamp: Utc::now(),
-        });
+        .ok();
 
-    Json(make_jf_user_data(&playstate, &item_id))
+    Json(make_jf_userdata(&token.user_id, &item_id, playstate.as_ref()))
 }
 
 /// POST /Users/{user}/PlayedItems/{item}
@@ -206,7 +191,7 @@ pub async fn user_favorite_items_post(
         .await
         .is_ok()
     {
-        Ok(Json(make_jf_user_data(&playstate, item_id)))
+        Ok(Json(make_jf_userdata(&token.user_id, item_id, Some(&playstate))))
     } else {
         Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
@@ -240,7 +225,7 @@ pub async fn user_favorite_items_post_simple(
         .await
         .is_ok()
     {
-        Ok(Json(make_jf_user_data(&playstate, &item_id)))
+        Ok(Json(make_jf_userdata(&token.user_id, &item_id, Some(&playstate))))
     } else {
         Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
@@ -277,7 +262,7 @@ pub async fn user_favorite_items_delete(
         .await
         .is_ok()
     {
-        Ok(Json(make_jf_user_data(&playstate, item_id)))
+        Ok(Json(make_jf_userdata(&token.user_id, item_id, Some(&playstate))))
     } else {
         Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
@@ -311,7 +296,7 @@ pub async fn user_favorite_items_delete_simple(
         .await
         .is_ok()
     {
-        Ok(Json(make_jf_user_data(&playstate, &item_id)))
+        Ok(Json(make_jf_userdata(&token.user_id, &item_id, Some(&playstate))))
     } else {
         Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
@@ -349,7 +334,7 @@ async fn user_data_update(
             timestamp: Utc::now(),
         });
 
-    let position = position_ticks / TICS_TO_SECONDS;
+    let position = position_ticks / TICKS_TO_SECONDS;
     let played_percentage = (100 * position / duration) as i32;
 
     info!(

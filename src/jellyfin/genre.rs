@@ -7,7 +7,7 @@ use axum::{
 use std::collections::HashMap;
 
 use super::jellyfin::JellyfinState;
-use super::jfitem::*;
+use super::jfitem2::*;
 use super::types::*;
 use crate::database::model::AccessToken;
 
@@ -32,7 +32,7 @@ pub async fn genres_all(
 
     let items: Vec<BaseItemDto> = genres
         .into_iter()
-        .map(|g| make_jf_item_genre(&g, &state.server_id))
+        .map(|g| make_jfitem_genre(&state, &g))
         .collect();
 
     let total_count = items.len() as i32;
@@ -52,7 +52,7 @@ pub async fn genre_details(
 ) -> Result<Json<BaseItemDto>, StatusCode> {
     let genres = state.collections.details().genres;
     if genres.contains(&name) {
-        Ok(Json(make_jf_item_genre(&name, &state.server_id)))
+        Ok(Json(make_jfitem_genre(&state, &name)))
     } else {
         Err(StatusCode::NOT_FOUND)
     }

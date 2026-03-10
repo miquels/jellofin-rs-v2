@@ -938,6 +938,34 @@ pub struct HTTPError {
     pub trace_id: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct DisplayPreferencesResponse {
+    pub id: String,
+    pub sort_by: String,
+    pub remember_indexing: bool,
+    pub primary_image_height: i32,
+    pub primary_image_width: i32,
+    pub custom_prefs: DisplayPreferencesCustomPrefs,
+    pub scroll_direction: String,
+    pub show_backdrop: bool,
+    pub remember_sorting: bool,
+    pub sort_order: String,
+    pub show_sidebar: bool,
+    pub client: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DisplayPreferencesCustomPrefs {
+    pub chromecast_version: String,
+    pub skip_forward_length: String,
+    pub skip_back_length: String,
+    pub enable_next_video_info_overlay: String,
+    pub tvhome: String,
+    pub dashboard_theme: String,
+}
+
 use std::collections::HashMap;
 
 impl Default for UserConfiguration {

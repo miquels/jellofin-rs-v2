@@ -10,7 +10,7 @@ use tower::ServiceExt;
 use tower_http::services::ServeFile;
 
 use super::jellyfin::JellyfinState;
-use super::jfitem::trim_prefix;
+use super::jfitem2::trim_prefix;
 use crate::collection::item::Item;
 use crate::collection::CollectionRepo;
 

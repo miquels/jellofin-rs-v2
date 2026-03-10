@@ -1048,7 +1048,7 @@ fn make_jf_studio_pairs(studios: &[String]) -> Vec<NameGuidPair> {
 }
 
 /// make_jf_userdata creates a UserItemDataDto, populating from DbUserData if provided.
-fn make_jf_userdata(
+pub fn make_jf_userdata(
     user_id: &str,
     item_id: &str,
     data: Option<&DbUserData>,

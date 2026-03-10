@@ -6,7 +6,7 @@ use axum::{
 use std::collections::HashMap;
 
 use super::jellyfin::JellyfinState;
-use super::jfitem::*;
+use super::jfitem2::*;
 use super::types::*;
 use crate::database::model::AccessToken;
 
@@ -31,7 +31,7 @@ pub async fn studios_all(
 
     let items: Vec<BaseItemDto> = studios
         .into_iter()
-        .map(|s| make_jf_item_studio(&s, &state.server_id))
+        .map(|s| make_jfitem_studio(&state, &s))
         .collect();
 
     let total_count = items.len() as i32;
@@ -49,5 +49,5 @@ pub async fn studio_details(
     State(state): State<JellyfinState>,
     Path(name): Path<String>,
 ) -> Json<BaseItemDto> {
-    Json(make_jf_item_studio(&name, &state.server_id))
+    Json(make_jfitem_studio(&state, &name))
 }

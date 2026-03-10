@@ -6,6 +6,7 @@ use axum::{
 };
 use std::collections::HashMap;
 
+use super::item::{apply_item_filter, apply_item_pagination, apply_item_sorting};
 use super::jellyfin::JellyfinState;
 use super::jfitem2::*;
 use super::types::*;
@@ -20,40 +21,25 @@ pub async fn show_episodes(
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
     let internal_id = trim_prefix(&show_id);
-    let season_id = query_params.get("seasonId").cloned();
 
-    let mut items = if let Some(sid) = season_id {
-        let internal_sid = trim_prefix(&sid);
-        if let Some((_, _show, season)) = state.collections.get_season_by_id(internal_sid) {
-            make_jfitem_episodes_overview(&state, &token.user_id, &season)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        } else {
-            return Err(StatusCode::NOT_FOUND);
-        }
-    } else {
-        if let Some((_, Item::Show(show))) = state.collections.get_item_by_id(internal_id) {
-            let mut all_episodes = Vec::new();
-            for season in &show.seasons {
-                let episodes = make_jfitem_episodes_overview(&state, &token.user_id, season)
-                    .await
-                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-                all_episodes.extend(episodes);
-            }
-            all_episodes
-        } else {
-            return Err(StatusCode::NOT_FOUND);
-        }
+    let show = match state.collections.get_item_by_id(internal_id) {
+        Some((_, Item::Show(s))) => s,
+        _ => return Err(StatusCode::NOT_FOUND),
     };
 
-    // Jellyfin episodes endpoint has some default sorting
-    items.sort_by(|a, b| {
-        let s_res = a.parent_index_number.cmp(&b.parent_index_number);
-        if s_res != std::cmp::Ordering::Equal {
-            return s_res;
+    // Always fetch all episodes, filtering (e.g. seasonId) is handled by apply_item_filter
+    let mut items = Vec::new();
+    for season in &show.seasons {
+        if let Ok(episodes) = make_jfitem_episodes_overview(&state, &token.user_id, season).await {
+            items.extend(episodes);
         }
-        a.index_number.cmp(&b.index_number)
-    });
+    }
+
+    // Apply filtering (handles seasonId, includeItemTypes, etc.)
+    items.retain(|i| apply_item_filter(i, &query_params));
+
+    // Apply sorting
+    items = apply_item_sorting(items, &query_params);
 
     let total_count = items.len() as i32;
 
@@ -69,12 +55,20 @@ pub async fn show_seasons(
     Extension(token): Extension<model::AccessToken>,
     State(state): State<JellyfinState>,
     AxumPath(show_id): AxumPath<String>,
+    Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
     let internal_id = trim_prefix(&show_id);
     if let Some((_, Item::Show(show))) = state.collections.get_item_by_id(internal_id) {
-        let items = make_jfitem_seasons_overview(&state, &token.user_id, &show)
+        let mut items = make_jfitem_seasons_overview(&state, &token.user_id, &show)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+        // Apply filtering
+        items.retain(|i| apply_item_filter(i, &query_params));
+
+        // Always sort seasons by index number (specials/season 99 end up last)
+        items.sort_by(|a, b| a.index_number.cmp(&b.index_number));
+
         let total_count = items.len() as i32;
         Ok(Json(UserItemsResponse {
             items,
@@ -103,23 +97,22 @@ pub async fn shows_next_up(
     for id in next_up_ids {
         if let Some((_, _show, _season, episode)) = state.collections.get_episode_by_id(&id) {
             if let Ok(dto) = make_jfitem_episode(&state, &token.user_id, &episode).await {
-                items.push(dto);
+                if apply_item_filter(&dto, &query_params) {
+                    items.push(dto);
+                }
             }
         }
     }
 
+    // Apply sorting
+    items = apply_item_sorting(items, &query_params);
+
     let total_count = items.len() as i32;
-    let limit = query_params
-        .get("limit")
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(items.len());
-    if items.len() > limit {
-        items.truncate(limit);
-    }
+    let (items, start_index) = apply_item_pagination(items, &query_params);
 
     Json(QueryResult {
         items,
-        start_index: 0,
+        start_index,
         total_record_count: total_count,
     })
 }

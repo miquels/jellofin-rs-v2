@@ -352,7 +352,7 @@ fn apply_items_filter(items: Vec<BaseItemDto>, query_params: &HashMap<String, St
         .collect()
 }
 
-fn apply_item_filter(i: &BaseItemDto, qp: &HashMap<String, String>) -> bool {
+pub(super) fn apply_item_filter(i: &BaseItemDto, qp: &HashMap<String, String>) -> bool {
     // includeItemTypes
     if let Some(types) = qp.get("includeItemTypes") {
         let type_list: Vec<&str> = types.split(',').collect();
@@ -635,7 +635,7 @@ fn apply_item_filter(i: &BaseItemDto, qp: &HashMap<String, String>) -> bool {
 // Sorting
 // ---------------------------------------------------------------------------
 
-fn apply_item_sorting(mut items: Vec<BaseItemDto>, query_params: &HashMap<String, String>) -> Vec<BaseItemDto> {
+pub(super) fn apply_item_sorting(mut items: Vec<BaseItemDto>, query_params: &HashMap<String, String>) -> Vec<BaseItemDto> {
     let sort_by_raw = match query_params.get("sortBy") {
         Some(s) if !s.is_empty() => s.clone(),
         _ => return items,
@@ -718,7 +718,7 @@ fn apply_item_sorting(mut items: Vec<BaseItemDto>, query_params: &HashMap<String
 // Pagination
 // ---------------------------------------------------------------------------
 
-fn apply_item_pagination(
+pub(super) fn apply_item_pagination(
     items: Vec<BaseItemDto>,
     query_params: &HashMap<String, String>,
 ) -> (Vec<BaseItemDto>, i32) {
