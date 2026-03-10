@@ -52,7 +52,7 @@ impl Movie {
         format!("{}/{}", self.path, self.file_name)
     }
 
-    pub fn duration(&self) -> Duration {
+    pub fn duration(&self) -> Option<Duration> {
         self.metadata.duration()
     }
 }
@@ -182,7 +182,7 @@ pub struct Episode {
 
 impl Episode {
     pub fn duration(&self) -> Duration {
-        self.metadata.duration()
+        self.metadata.duration().unwrap_or_default()
     }
 }
 
@@ -215,12 +215,12 @@ impl Item {
         }
     }
 
-    pub fn duration(&self) -> Duration {
+    pub fn duration(&self) -> Option<Duration> {
         match self {
             Item::Movie(m) => m.duration(),
-            Item::Show(s) => s.duration(),
-            Item::Season(s) => s.duration(),
-            Item::Episode(e) => e.duration(),
+            Item::Show(s) => Some(s.duration()),
+            Item::Season(s) => Some(s.duration()),
+            Item::Episode(e) => Some(e.duration()),
         }
     }
 }

@@ -85,9 +85,10 @@ impl Collection {
                             studios.insert(studio.clone());
                         }
                     }
-                    let rating = &movie.metadata.official_rating;
-                    if !rating.is_empty() {
-                        official_ratings.insert(rating.to_string());
+                    if let Some(rating) = &movie.metadata.official_rating {
+                        if !rating.is_empty() {
+                            official_ratings.insert(rating.clone());
+                        }
                     }
                     if let Some(year) = movie.metadata.year {
                         if year != 0 {
@@ -110,9 +111,10 @@ impl Collection {
                             studios.insert(studio.clone());
                         }
                     }
-                    let rating = &show.metadata.official_rating;
-                    if !rating.is_empty() {
-                        official_ratings.insert(rating.to_string());
+                    if let Some(rating) = &show.metadata.official_rating {
+                        if !rating.is_empty() {
+                            official_ratings.insert(rating.clone());
+                        }
                     }
                     if let Some(year) = show.metadata.year {
                         if year != 0 {

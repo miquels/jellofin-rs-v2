@@ -415,7 +415,7 @@ pub async fn make_jf_item_root(state: &JellyfinState, user_id: &str) -> AnyhowRe
     dto.id = make_jf_root_id(COLLECTION_ROOT_ID);
     dto.server_id = state.server_id.clone();
     dto.item_type = ITEM_TYPE_USER_ROOT_FOLDER.to_string();
-    dto.is_folder = Some(true);
+    dto.is_folder = true;
 
     let collections = make_jf_collection_root_overview(state, user_id).await?;
     dto.child_count = Some(collections.len() as i32);
@@ -451,7 +451,7 @@ pub fn make_jf_item_collection(state: &JellyfinState, collection_id: &str) -> An
     dto.id = make_jf_collection_id(&c.id);
     dto.server_id = state.server_id.clone();
     dto.item_type = ITEM_TYPE_COLLECTION_FOLDER.to_string();
-    dto.is_folder = Some(true);
+    dto.is_folder = true;
     dto.child_count = Some(c.items.len() as i32);
 
     match c.collection_type {
@@ -469,7 +469,7 @@ async fn make_jf_item_collection_favorites(state: &JellyfinState, user_id: &str)
     dto.id = make_jf_collection_favorites_id(FAVORITES_COLLECTION_ID);
     dto.server_id = state.server_id.clone();
     dto.item_type = ITEM_TYPE_USER_VIEW.to_string();
-    dto.is_folder = Some(true);
+    dto.is_folder = true;
     dto.child_count = Some(favorites.len() as i32);
     dto.collection_type = Some("playlists".to_string());
 
@@ -483,7 +483,7 @@ async fn make_jf_item_collection_playlist(state: &JellyfinState, user_id: &str) 
     dto.id = make_jf_collection_playlist_id(PLAYLIST_COLLECTION_ID);
     dto.server_id = state.server_id.clone();
     dto.item_type = ITEM_TYPE_USER_VIEW.to_string();
-    dto.is_folder = Some(true);
+    dto.is_folder = true;
     dto.child_count = Some(playlist_ids.len() as i32);
     dto.collection_type = Some("playlists".to_string());
 
@@ -513,7 +513,7 @@ async fn make_jf_playlist_overview(state: &JellyfinState, user_id: &str) -> Anyh
             dto.id = make_jf_playlist_id(&p.id);
             dto.server_id = state.server_id.clone();
             dto.item_type = ITEM_TYPE_PLAYLIST.to_string();
-            dto.is_folder = Some(false);
+            dto.is_folder = false;
             items.push(dto);
         }
     }
@@ -624,14 +624,14 @@ fn apply_item_filter(i: &BaseItemDto, query_params: &HashMap<String, String>) ->
 
     if let Some(hd) = query_params.get("isHd") {
         let is_hd = hd == "true";
-        if i.is_hd != Some(is_hd) {
+        if i.is_hd != is_hd {
             return false;
         }
     }
 
     if let Some(k4) = query_params.get("is4k") {
         let is_4k = k4 == "true";
-        if i.is_4k != Some(is_4k) {
+        if i.is_4k != is_4k {
             return false;
         }
     }

@@ -138,46 +138,42 @@ pub fn convert_movie_to_dto(movie: &Movie, server_id: &str, user_data: Option<&U
     dto.server_id = server_id.to_string();
     dto.item_type = "Movie".to_string();
     dto.path = Some(movie.file_path());
-    dto.run_time_ticks = Some(movie.metadata.runtime_ticks());
+    dto.run_time_ticks = movie.metadata.runtime_ticks();
     dto.production_year = movie.metadata.year;
-    dto.overview = Some(movie.metadata.plot.clone());
+    dto.overview = movie.metadata.plot.clone();
     dto.sort_name = Some(movie.sort_name.clone());
     dto.premiere_date = movie.metadata.premiered;
     dto.media_type = Some("Video".to_string());
-    dto.width = Some(movie.metadata.video_width);
-    dto.height = Some(movie.metadata.video_height);
-    dto.is_hd = Some(item_is_hd(movie.metadata.video_height));
-    dto.is_4k = Some(item_is_4k(movie.metadata.video_height));
+    dto.width = movie.metadata.video_width;
+    dto.height = movie.metadata.video_height;
+    dto.is_hd = movie.metadata.video_height.map(item_is_hd).unwrap_or(false);
+    dto.is_4k = movie.metadata.video_height.map(item_is_4k).unwrap_or(false);
 
     // Genres
     if !movie.metadata.genres.is_empty() {
-        dto.genres = Some(movie.metadata.genres.clone());
-        dto.genre_items = Some(
-            movie
-                .metadata
-                .genres
-                .iter()
-                .map(|g| NameGuidPair {
-                    name: g.clone(),
-                    id: crate::idhash::id_hash(g),
-                })
-                .collect(),
-        );
+        dto.genres = movie.metadata.genres.clone();
+        dto.genre_items = movie
+            .metadata
+            .genres
+            .iter()
+            .map(|g| NameGuidPair {
+                name: g.clone(),
+                id: crate::idhash::id_hash(g),
+            })
+            .collect();
     }
 
     // Studios
     if !movie.metadata.studios.is_empty() {
-        dto.studios = Some(
-            movie
-                .metadata
-                .studios
-                .iter()
-                .map(|s| NameGuidPair {
-                    name: s.clone(),
-                    id: crate::idhash::id_hash(s),
-                })
-                .collect(),
-        );
+        dto.studios = movie
+            .metadata
+            .studios
+            .iter()
+            .map(|s| NameGuidPair {
+                name: s.clone(),
+                id: crate::idhash::id_hash(s),
+            })
+            .collect();
     }
 
     // Images
@@ -186,10 +182,10 @@ pub fn convert_movie_to_dto(movie: &Movie, server_id: &str, user_data: Option<&U
         image_tags.insert("Primary".to_string(), movie.id.clone());
     }
     if !movie.fanart.is_empty() {
-        dto.backdrop_image_tags = Some(vec![movie.id.clone()]);
+        dto.backdrop_image_tags = vec![movie.id.clone()];
     }
     if !image_tags.is_empty() {
-        dto.image_tags = Some(image_tags);
+        dto.image_tags = image_tags;
     }
 
     // User Data
@@ -198,7 +194,7 @@ pub fn convert_movie_to_dto(movie: &Movie, server_id: &str, user_data: Option<&U
     }
 
     // Media Sources
-    dto.media_sources = Some(vec![MediaSourceInfo {
+    dto.media_sources = vec![MediaSourceInfo {
         protocol: "File".to_string(),
         id: movie.id.clone(),
         path: movie.file_path(),
@@ -206,14 +202,14 @@ pub fn convert_movie_to_dto(movie: &Movie, server_id: &str, user_data: Option<&U
         container: movie.file_name.split('.').last().unwrap_or("mp4").to_string(),
         size: movie.file_size,
         name: movie.name.clone(),
-        run_time_ticks: Some(movie.metadata.runtime_ticks()),
+        run_time_ticks: movie.metadata.runtime_ticks(),
         supports_direct_stream: true,
         supports_direct_play: true,
         supports_external_stream: true,
         media_streams: Vec::new(), // TODO: Populate if needed
         default_subtitle_stream_index: None,
         ..MediaSourceInfo::default()
-    }]);
+    }];
 
     dto
 }
@@ -227,25 +223,23 @@ pub fn convert_show_to_dto(show: &Show, server_id: &str, user_data: Option<&User
     dto.path = Some(show.path.clone());
     dto.run_time_ticks = Some(show.duration().as_micros() as i64 * 10);
     dto.production_year = show.metadata.year;
-    dto.overview = Some(show.metadata.plot.clone());
+    dto.overview = show.metadata.plot.clone();
     dto.sort_name = Some(show.sort_name.clone());
     dto.premiere_date = show.metadata.premiered;
-    dto.is_folder = Some(true);
+    dto.is_folder = true;
     dto.child_count = Some(show.seasons.len() as i32);
 
     // Genres
     if !show.metadata.genres.is_empty() {
-        dto.genres = Some(show.metadata.genres.clone());
-        dto.genre_items = Some(
-            show.metadata
-                .genres
-                .iter()
-                .map(|g| NameGuidPair {
-                    name: g.clone(),
-                    id: crate::idhash::id_hash(g),
-                })
-                .collect(),
-        );
+        dto.genres = show.metadata.genres.clone();
+        dto.genre_items = show.metadata
+            .genres
+            .iter()
+            .map(|g| NameGuidPair {
+                name: g.clone(),
+                id: crate::idhash::id_hash(g),
+            })
+            .collect();
     }
 
     // Images
@@ -254,10 +248,10 @@ pub fn convert_show_to_dto(show: &Show, server_id: &str, user_data: Option<&User
         image_tags.insert("Primary".to_string(), show.id.clone());
     }
     if !show.fanart.is_empty() {
-        dto.backdrop_image_tags = Some(vec![show.id.clone()]);
+        dto.backdrop_image_tags = vec![show.id.clone()];
     }
     if !image_tags.is_empty() {
-        dto.image_tags = Some(image_tags);
+        dto.image_tags = image_tags;
     }
 
     // User Data
@@ -283,7 +277,7 @@ pub fn convert_season_to_dto(
     dto.index_number = Some(season.season_no);
     dto.series_id = Some(show.id.clone());
     dto.series_name = Some(show.name.clone());
-    dto.is_folder = Some(true);
+    dto.is_folder = true;
     dto.child_count = Some(season.episodes.len() as i32);
 
     // Images
@@ -292,7 +286,7 @@ pub fn convert_season_to_dto(
         image_tags.insert("Primary".to_string(), season.id.clone());
     }
     if !image_tags.is_empty() {
-        dto.image_tags = Some(image_tags);
+        dto.image_tags = image_tags;
     }
 
     // User Data
@@ -315,17 +309,17 @@ pub fn convert_episode_to_dto(
     dto.server_id = server_id.to_string();
     dto.item_type = "Episode".to_string();
     dto.path = Some(format!("{}/{}", episode.path, episode.file_name));
-    dto.run_time_ticks = Some(episode.metadata.runtime_ticks());
+    dto.run_time_ticks = episode.metadata.runtime_ticks();
     dto.index_number = Some(episode.episode_no);
     dto.parent_index_number = Some(episode.season_no);
     dto.series_id = Some(show.id.clone());
     dto.series_name = Some(show.name.clone());
-    dto.overview = Some(episode.metadata.plot.clone());
+    dto.overview = episode.metadata.plot.clone();
     dto.media_type = Some("Video".to_string());
-    dto.width = Some(episode.metadata.video_width);
-    dto.height = Some(episode.metadata.video_height);
-    dto.is_hd = Some(item_is_hd(episode.metadata.video_height));
-    dto.is_4k = Some(item_is_4k(episode.metadata.video_height));
+    dto.width = episode.metadata.video_width;
+    dto.height = episode.metadata.video_height;
+    dto.is_hd = episode.metadata.video_height.map(item_is_hd).unwrap_or(false);
+    dto.is_4k = episode.metadata.video_height.map(item_is_4k).unwrap_or(false);
 
     // Find season ID
     if let Some(season) = show.seasons.iter().find(|s| s.season_no == episode.season_no) {
@@ -339,7 +333,7 @@ pub fn convert_episode_to_dto(
         image_tags.insert("Primary".to_string(), episode.id.clone());
     }
     if !image_tags.is_empty() {
-        dto.image_tags = Some(image_tags);
+        dto.image_tags = image_tags;
     }
 
     // User Data
@@ -348,7 +342,7 @@ pub fn convert_episode_to_dto(
     }
 
     // Media Sources
-    dto.media_sources = Some(vec![MediaSourceInfo {
+    dto.media_sources = vec![MediaSourceInfo {
         protocol: "File".to_string(),
         id: episode.id.clone(),
         path: format!("{}/{}", episode.path, episode.file_name),
@@ -356,7 +350,7 @@ pub fn convert_episode_to_dto(
         container: episode.file_name.split('.').last().unwrap_or("mp4").to_string(),
         size: episode.file_size,
         name: episode.name.clone(),
-        run_time_ticks: Some(episode.metadata.runtime_ticks()),
+        run_time_ticks: episode.metadata.runtime_ticks(),
         supports_direct_stream: true,
         supports_direct_play: true,
         supports_external_stream: true,
@@ -364,7 +358,7 @@ pub fn convert_episode_to_dto(
         formats: Vec::new(),
         default_audio_stream_index: Some(0),
         ..MediaSourceInfo::default()
-    }]);
+    }];
 
     dto
 }
@@ -427,7 +421,7 @@ pub fn make_jf_item_person(person: &crate::database::model::Person, server_id: &
     };
 
     if !person.place_of_birth.is_empty() {
-        dto.production_locations = Some(vec![person.place_of_birth.clone()]);
+        dto.production_locations = vec![person.place_of_birth.clone()];
     }
 
     if !person.poster_url.is_empty() {
@@ -436,7 +430,7 @@ pub fn make_jf_item_person(person: &crate::database::model::Person, server_id: &
             "Primary".to_string(),
             format!("{}{}", TAG_PREFIX_REDIRECT, person.poster_url),
         );
-        dto.image_tags = Some(image_tags);
+        dto.image_tags = image_tags;
     }
 
     dto.user_data = Some(UserItemDataDto {

@@ -82,7 +82,7 @@ impl Search {
                             id_field => movie.id.clone(),
                             collection_id_field => collection.id.clone(),
                             name_field => movie.name.clone(),
-                            overview_field => movie.metadata.plot.clone(),
+                            overview_field => movie.metadata.plot.clone().unwrap_or_default(),
                             genres_field => genres_text,
                             item_type_field => "movie".to_string(),
                         ))
@@ -96,7 +96,7 @@ impl Search {
                             id_field => show.id.clone(),
                             collection_id_field => collection.id.clone(),
                             name_field => show.name.clone(),
-                            overview_field => show.metadata.plot.clone(),
+                            overview_field => show.metadata.plot.clone().unwrap_or_default(),
                             genres_field => genres_text,
                             item_type_field => "show".to_string(),
                         ))
@@ -110,7 +110,7 @@ impl Search {
                                     id_field => episode.id.clone(),
                                     collection_id_field => collection.id.clone(),
                                     name_field => episode.name.clone(),
-                                    overview_field => episode.metadata.plot.clone(),
+                                    overview_field => episode.metadata.plot.clone().unwrap_or_default(),
                                     genres_field => String::new(),
                                     item_type_field => "episode".to_string(),
                                 ))

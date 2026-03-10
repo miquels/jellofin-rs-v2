@@ -269,14 +269,14 @@ fn copy_item(item: &CollectionItem, _collection_id: &str) -> Item {
                 sort_name: Some(movie.sort_name.clone()),
                 nfo: ItemNfo {
                     id: movie.id.clone(),
-                    title: Some(movie.metadata.title.clone()),
-                    plot: Some(movie.metadata.plot.clone()),
+                    title: movie.metadata.title.clone(),
+                    plot: movie.metadata.plot.clone(),
                     genre: Some(movie.metadata.genres.clone()),
                     premiered: premiered.clone(),
-                    mpaa: Some(movie.metadata.official_rating.clone()),
+                    mpaa: movie.metadata.official_rating.clone(),
                     aired: premiered,
                     studio,
-                    rating: Some(movie.metadata.rating),
+                    rating: movie.metadata.rating,
                 },
                 banner: if movie.banner.is_empty() {
                     None
@@ -298,7 +298,7 @@ fn copy_item(item: &CollectionItem, _collection_id: &str) -> Item {
                 } else {
                     Some(escape_path(&movie.poster))
                 },
-                rating: Some(movie.metadata.rating),
+                rating: movie.metadata.rating,
                 votes: None,
                 genre: Some(movie.metadata.genres.clone()),
                 year: movie.metadata.year,
@@ -335,14 +335,14 @@ fn copy_item(item: &CollectionItem, _collection_id: &str) -> Item {
                 sort_name: Some(show.sort_name.clone()),
                 nfo: ItemNfo {
                     id: show.id.clone(),
-                    title: Some(show.metadata.title.clone()),
-                    plot: Some(show.metadata.plot.clone()),
+                    title: show.metadata.title.clone(),
+                    plot: show.metadata.plot.clone(),
                     genre: Some(show.metadata.genres.clone()),
                     premiered: premiered.clone(),
-                    mpaa: Some(show.metadata.official_rating.clone()),
+                    mpaa: show.metadata.official_rating.clone(),
                     aired: premiered,
                     studio,
-                    rating: Some(show.metadata.rating),
+                    rating: show.metadata.rating,
                 },
                 banner: if show.banner.is_empty() {
                     None
@@ -364,7 +364,7 @@ fn copy_item(item: &CollectionItem, _collection_id: &str) -> Item {
                 } else {
                     Some(escape_path(&show.poster))
                 },
-                rating: Some(show.metadata.rating),
+                rating: show.metadata.rating,
                 votes: None,
                 genre: Some(show.metadata.genres.clone()),
                 year: show.metadata.year,
@@ -459,8 +459,8 @@ fn copy_episode(episode: &crate::collection::Episode, do_nfo: bool) -> Episode {
             .map(|dt: chrono::DateTime<chrono::Utc>| dt.format("%Y-%m-%d").to_string());
 
         EpisodeNfo {
-            title: Some(episode.metadata.title.clone()),
-            plot: Some(episode.metadata.plot.clone()),
+            title: episode.metadata.title.clone(),
+            plot: episode.metadata.plot.clone(),
             season: Some(episode.season_no.to_string()),
             episode: Some(episode.episode_no.to_string()),
             aired,

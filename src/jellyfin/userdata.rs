@@ -328,7 +328,7 @@ async fn user_data_update(
     let mut duration = 0;
 
     if let Some((_, item)) = state.collections.get_item_by_id(internal_id) {
-        duration = item.duration().as_secs() as i64;
+        duration = item.duration().map(|d| d.as_secs() as i64).unwrap_or(0);
     }
 
     // If we don't have a duration, assume 1 hour

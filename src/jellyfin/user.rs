@@ -83,11 +83,11 @@ fn build_collection_dto(collection: &crate::collection::Collection, server_id: &
     dto.etag = Some(crate::idhash::id_hash(&format!("etag_{}", collection.id)));
     dto.display_preferences_id = Some(format!("dp_{}", collection.id));
     dto.primary_image_aspect_ratio = Some(1.7777777777777777); // Standard 16:9
-    dto.provider_ids = Some(std::collections::HashMap::new()); // Empty object {}
-    
-    dto.is_folder = Some(true);
-    dto.is_hd = Some(false);
-    dto.is_4k = Some(false);
+    dto.provider_ids = std::collections::HashMap::new(); // Empty object {}
+
+    dto.is_folder = true;
+    dto.is_hd = false;
+    dto.is_4k = false;
     dto.lock_data = Some(false);
     
     dto.play_access = Some("Full".to_string());
@@ -115,7 +115,7 @@ fn build_collection_dto(collection: &crate::collection::Collection, server_id: &
     };
     dto.child_count = Some(child_count as i32);
     
-    dto.genres = Some(details.genres.clone());
+    dto.genres = details.genres.clone();
     
     // Construct GenreItems
     let genre_items: Vec<NameGuidPair> = details.genres.iter().map(|g| {
@@ -124,7 +124,7 @@ fn build_collection_dto(collection: &crate::collection::Collection, server_id: &
             id: format!("genre_{}", crate::idhash::id_hash(g)), // Match Go format "genre_HASH" if possible, but hash is fine
         }
     }).collect();
-    dto.genre_items = Some(genre_items);
+    dto.genre_items = genre_items;
     
     dto
 }
