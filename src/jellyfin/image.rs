@@ -9,6 +9,8 @@ use std::path::PathBuf;
 use tower::ServiceExt;
 use tower_http::services::ServeFile;
 
+use tracing::warn;
+
 use super::jellyfin::JellyfinState;
 use super::jfitem2::trim_prefix;
 use crate::collection::item::Item;
@@ -92,7 +94,13 @@ async fn get_image_common(
 
     let internal_id = trim_prefix(&item_id);
     let image_path = find_image_path(&state.collections, internal_id, &image_type)
-        .ok_or(StatusCode::NOT_FOUND)?;
+        .ok_or_else(|| {
+            warn!(
+                "Image not found: item_id={}, internal_id={}, image_type={}",
+                item_id, internal_id, image_type
+            );
+            StatusCode::NOT_FOUND
+        })?;
 
     // Determine quality: strictly following user suggestion but falling back to path type if param unavailable
     let type_to_check = params
@@ -145,7 +153,10 @@ async fn get_image_common(
 }
 
 fn find_image_path(collections: &CollectionRepo, item_id: &str, image_type: &str) -> Option<PathBuf> {
-    let (collection, item) = collections.get_item_by_id(item_id)?;
+    let (collection, item) = collections.get_item_by_id(item_id).or_else(|| {
+        warn!("find_image_path: item not found for id={}", item_id);
+        None
+    })?;
 
     let image_filename = match image_type.to_lowercase().as_str() {
         "primary" | "poster" => match &item {
@@ -178,6 +189,10 @@ fn find_image_path(collections: &CollectionRepo, item_id: &str, image_type: &str
     };
 
     if image_filename.is_empty() {
+        warn!(
+            "find_image_path: empty image filename for id={}, type={}",
+            item_id, image_type
+        );
         return None;
     }
 
@@ -197,6 +212,10 @@ fn find_image_path(collections: &CollectionRepo, item_id: &str, image_type: &str
     if path.exists() {
         Some(path)
     } else {
+        warn!(
+            "find_image_path: file does not exist: {}",
+            path.display()
+        );
         None
     }
 }
