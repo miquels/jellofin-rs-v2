@@ -2,32 +2,77 @@ use axum::{extract::{Request, State}, middleware::Next, response::Response};
 use tracing::info;
 use crate::server::AppState;
 
-/// Middleware to normalize request paths
+/// Middleware to normalize request paths and query parameters.
 /// 1. Removes redundant slashes (// -> /)
 /// 2. Strips /emby prefix for Jellyfin compatibility
+/// 3. Lowercases first character of query parameter names (like Go's normalizeJellyfinRequest)
+/// 4. Merges duplicate query parameter keys into comma-separated values
+///    (e.g. includeItemTypes=Movie&includeItemTypes=Series -> includeItemTypes=Movie,Series)
 pub async fn normalize_path_middleware(mut req: Request, next: Next) -> Response {
     let uri = req.uri();
     let path = uri.path();
 
     // Remove double slashes
-    let mut normalized = path.to_string();
-    while normalized.contains("//") {
-        normalized = normalized.replace("//", "/");
+    let mut normalized_path = path.to_string();
+    while normalized_path.contains("//") {
+        normalized_path = normalized_path.replace("//", "/");
     }
 
     // Strip /emby prefix
-    if normalized.starts_with("/emby/") {
-        normalized = normalized.trim_start_matches("/emby").to_string();
+    if normalized_path.starts_with("/emby/") {
+        normalized_path = normalized_path.trim_start_matches("/emby").to_string();
     }
 
-    // Update request URI if path changed
-    if normalized != path {
+    // Normalize query parameters: lowercase first char of key + merge duplicates.
+    // Preserves original parameter order (first occurrence wins position).
+    let normalized_query = if let Some(query) = uri.query() {
+        let mut keys: Vec<String> = Vec::new();
+        let mut values: Vec<String> = Vec::new();
+        for pair in query.split('&') {
+            let (key, value) = match pair.split_once('=') {
+                Some((k, v)) => (k, v),
+                None => (pair, ""),
+            };
+            // Lowercase first character of key name
+            let normalized_key = if key.is_empty() {
+                key.to_string()
+            } else {
+                let mut chars = key.chars();
+                let first = chars.next().unwrap().to_lowercase().to_string();
+                format!("{}{}", first, chars.as_str())
+            };
+            // Merge duplicate keys by appending comma-separated values
+            if let Some(pos) = keys.iter().position(|k| k == &normalized_key) {
+                values[pos].push(',');
+                values[pos].push_str(value);
+            } else {
+                keys.push(normalized_key);
+                values.push(value.to_string());
+            }
+        }
+        let qs: String = keys
+            .iter()
+            .zip(values.iter())
+            .map(|(k, v)| format!("{}={}", k, v))
+            .collect::<Vec<_>>()
+            .join("&");
+        Some(qs)
+    } else {
+        None
+    };
+
+    // Rebuild URI if anything changed
+    let original_query = uri.query().map(|q| q.to_string());
+    if normalized_path != path || normalized_query != original_query {
         let mut parts = uri.clone().into_parts();
         parts.path_and_query = Some(
             format!(
                 "{}{}",
-                normalized,
-                uri.query().map(|q| format!("?{}", q)).unwrap_or_default()
+                normalized_path,
+                normalized_query
+                    .as_ref()
+                    .map(|q| format!("?{}", q))
+                    .unwrap_or_default()
             )
             .parse()
             .unwrap(),
