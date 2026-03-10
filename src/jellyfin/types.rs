@@ -582,7 +582,7 @@ pub struct MediaSourceInfo {
     pub supports_probing: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "PascalCase")]
 pub struct MediaStream {
     pub codec: String,

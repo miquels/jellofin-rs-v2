@@ -475,7 +475,7 @@ async fn make_jfitem_playlist(
 }
 
 /// make_jfitem_playlist_overview creates a list of playlists of the user.
-async fn make_jfitem_playlist_overview(
+pub async fn make_jfitem_playlist_overview(
     state: &JellyfinState,
     user_id: &str,
 ) -> Result<Vec<JFItem>> {
@@ -722,7 +722,7 @@ async fn make_jfitem_show(
 }
 
 /// make_jfitem_seasons_overview generates all season items for a show.
-async fn make_jfitem_seasons_overview(
+pub async fn make_jfitem_seasons_overview(
     state: &JellyfinState,
     user_id: &str,
     show: &Show,
@@ -841,7 +841,7 @@ async fn make_jfitem_season(
 }
 
 /// make_jfitem_episodes_overview generates all episode items for one season.
-async fn make_jfitem_episodes_overview(
+pub async fn make_jfitem_episodes_overview(
     state: &JellyfinState,
     user_id: &str,
     season: &Season,
@@ -857,7 +857,7 @@ async fn make_jfitem_episodes_overview(
 }
 
 /// make_jfitem_episode creates an episode item.
-async fn make_jfitem_episode(
+pub async fn make_jfitem_episode(
     state: &JellyfinState,
     user_id: &str,
     episode: &Episode,
@@ -1314,7 +1314,7 @@ fn make_jf_person_id(name: &str) -> String {
 }
 
 /// trim_prefix removes the type prefix from an item id.
-fn trim_prefix(s: &str) -> &str {
+pub fn trim_prefix(s: &str) -> &str {
     if let Some(pos) = s.find(ITEM_PREFIX_SEPARATOR) {
         &s[pos + 1..]
     } else {
@@ -1322,19 +1322,19 @@ fn trim_prefix(s: &str) -> &str {
     }
 }
 
-fn is_jf_root_id(id: &str) -> bool {
+pub fn is_jf_root_id(id: &str) -> bool {
     id.starts_with(ITEM_PREFIX_ROOT)
 }
 
-fn is_jf_collection_id(id: &str) -> bool {
+pub fn is_jf_collection_id(id: &str) -> bool {
     id.starts_with(ITEM_PREFIX_COLLECTION)
 }
 
-fn is_jf_collection_favorites_id(id: &str) -> bool {
+pub fn is_jf_collection_favorites_id(id: &str) -> bool {
     id.starts_with(ITEM_PREFIX_COLLECTION_FAVORITES)
 }
 
-fn is_jf_collection_playlist_id(id: &str) -> bool {
+pub fn is_jf_collection_playlist_id(id: &str) -> bool {
     id == make_jf_collection_playlist_id(PLAYLIST_COLLECTION_ID)
 }
 

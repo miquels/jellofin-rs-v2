@@ -6,9 +6,8 @@ use axum::{
 };
 use std::collections::HashMap;
 
-use super::item::*;
 use super::jellyfin::JellyfinState;
-use super::jfitem::*;
+use super::jfitem2::*;
 use super::types::*;
 use crate::collection::Item;
 use crate::database::model;
@@ -25,8 +24,8 @@ pub async fn show_episodes(
 
     let mut items = if let Some(sid) = season_id {
         let internal_sid = trim_prefix(&sid);
-        if let Some((_, show, season)) = state.collections.get_season_by_id(internal_sid) {
-            make_jf_episodes_overview(&state, &token.user_id, &season, &show)
+        if let Some((_, _show, season)) = state.collections.get_season_by_id(internal_sid) {
+            make_jfitem_episodes_overview(&state, &token.user_id, &season)
                 .await
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         } else {
@@ -36,7 +35,7 @@ pub async fn show_episodes(
         if let Some((_, Item::Show(show))) = state.collections.get_item_by_id(internal_id) {
             let mut all_episodes = Vec::new();
             for season in &show.seasons {
-                let episodes = make_jf_episodes_overview(&state, &token.user_id, season, &show)
+                let episodes = make_jfitem_episodes_overview(&state, &token.user_id, season)
                     .await
                     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
                 all_episodes.extend(episodes);
@@ -73,7 +72,7 @@ pub async fn show_seasons(
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
     let internal_id = trim_prefix(&show_id);
     if let Some((_, Item::Show(show))) = state.collections.get_item_by_id(internal_id) {
-        let items = make_jf_seasons_overview(&state, &token.user_id, &show)
+        let items = make_jfitem_seasons_overview(&state, &token.user_id, &show)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         let total_count = items.len() as i32;
@@ -102,14 +101,10 @@ pub async fn shows_next_up(
 
     let mut items = Vec::new();
     for id in next_up_ids {
-        if let Some((_, show, _season, episode)) = state.collections.get_episode_by_id(&id) {
-            let user_data = state.repo.get_user_data(&token.user_id, &id).await.ok();
-            items.push(convert_episode_to_dto(
-                &episode,
-                &show,
-                &state.server_id,
-                user_data.as_ref(),
-            ));
+        if let Some((_, _show, _season, episode)) = state.collections.get_episode_by_id(&id) {
+            if let Ok(dto) = make_jfitem_episode(&state, &token.user_id, &episode).await {
+                items.push(dto);
+            }
         }
     }
 

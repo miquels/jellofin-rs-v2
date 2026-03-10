@@ -1,5 +1,5 @@
 use super::error::apierror;
-use super::item::make_jf_item;
+use super::jfitem2::make_jfitem;
 use super::jellyfin::JellyfinState;
 use super::types::*;
 use crate::database::model::{AccessToken, Playlist};
@@ -111,8 +111,8 @@ pub async fn get_playlist_items(
     let mut items = Vec::new();
 
     for item_id in playlist.item_ids {
-        if let Some((_collection, item)) = state.collections.get_item_by_id(&item_id) {
-            if let Ok(jfitem) = make_jf_item(&state, &token.user_id, &item).await {
+        if let Some((collection, item)) = state.collections.get_item_by_id(&item_id) {
+            if let Ok(jfitem) = make_jfitem(&state, &token.user_id, &item, &collection.id).await {
                 items.push(jfitem);
             }
         }
