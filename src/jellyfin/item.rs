@@ -6,7 +6,7 @@ use axum::{
 };
 use chrono::{DateTime, NaiveDate, NaiveDateTime, Utc};
 use rand::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use tracing::warn;
 
 use super::jellyfin::JellyfinState;
@@ -75,7 +75,8 @@ pub async fn items_query(
     let items = apply_items_filter(items, &query_params);
     let total_item_count = items.len() as i32;
     let sorted_items = apply_item_sorting(items, &query_params);
-    let (paged_items, start_index) = apply_item_pagination(sorted_items, &query_params);
+    let (mut paged_items, start_index) = apply_item_pagination(sorted_items, &query_params);
+    apply_fields_filter(&mut paged_items, &query_params);
 
     Ok(Json(UserItemsResponse {
         items: paged_items,
@@ -780,6 +781,94 @@ pub(super) fn apply_item_pagination(
     };
 
     (items[start_index..end].to_vec(), start_index as i32)
+}
+
+// ---------------------------------------------------------------------------
+// Fields filtering
+// ---------------------------------------------------------------------------
+
+/// Strips optional fields from items that were not requested via the `fields` query parameter.
+/// This matches the real Jellyfin API behavior where the `Fields` parameter controls
+/// which additional fields are included in the response.
+fn apply_fields_filter(items: &mut Vec<BaseItemDto>, query_params: &HashMap<String, String>) {
+    let fields_str = match query_params.get("fields") {
+        Some(f) => f,
+        None => return, // No Fields parameter = return everything (backwards compat)
+    };
+
+    let fields: HashSet<&str> = fields_str
+        .split(',')
+        .map(|s| s.trim())
+        .collect();
+
+    for item in items.iter_mut() {
+        if !fields.contains("Overview") {
+            item.overview = None;
+        }
+        if !fields.contains("Genres") {
+            item.genres.clear();
+            item.genre_items.clear();
+        }
+        if !fields.contains("Studios") {
+            item.studios.clear();
+        }
+        if !fields.contains("People") {
+            item.people.clear();
+        }
+        if !fields.contains("MediaSources") {
+            item.media_sources.clear();
+            item.media_streams.clear();
+        }
+        if !fields.contains("ProviderIds") {
+            item.provider_ids.clear();
+        }
+        if !fields.contains("Tags") {
+            item.tags.clear();
+        }
+        if !fields.contains("SortName") {
+            item.sort_name = None;
+            item.forced_sort_name = None;
+        }
+        if !fields.contains("DateCreated") {
+            item.date_created = None;
+        }
+        if !fields.contains("Etag") {
+            item.etag = None;
+        }
+        if !fields.contains("Path") {
+            item.path = None;
+        }
+        if !fields.contains("Chapters") {
+            item.chapters.clear();
+        }
+        if !fields.contains("ExternalUrls") {
+            item.external_urls.clear();
+        }
+        if !fields.contains("Taglines") {
+            item.taglines.clear();
+        }
+        if !fields.contains("ChildCount") {
+            item.child_count = None;
+        }
+        if !fields.contains("RecursiveItemCount") {
+            item.recursive_item_count = None;
+        }
+        if !fields.contains("ProductionLocations") {
+            item.production_locations.clear();
+        }
+        if !fields.contains("OriginalTitle") {
+            item.original_title = None;
+        }
+        if !fields.contains("CanDelete") {
+            item.can_delete = None;
+        }
+        if !fields.contains("CanDownload") {
+            item.can_download = None;
+        }
+        if !fields.contains("DisplayPreferencesId") {
+            item.display_preferences_id = None;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
