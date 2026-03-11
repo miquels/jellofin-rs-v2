@@ -122,7 +122,7 @@ pub async fn get_jfitems_by_parent_id(
             .ok_or_else(|| anyhow!("could not find collection"))?;
         let mut items = Vec::new();
         for item in &c.items {
-            match make_jfitem(state, user_id, item, &c.id).await {
+            match make_jfitem_light(state, user_id, item, &c.id).await {
                 Ok(jfitem) => items.push(jfitem),
                 Err(e) => warn!("get_jfitems_by_parent_id: {}", e),
             }
@@ -158,11 +158,12 @@ pub async fn get_jfitems_by_parent_id(
 }
 
 /// get_jfitems_all returns list of all items across all collections.
+/// Uses lightweight DTOs — skips expensive per-item DB lookups (user_data, media_sources).
 pub async fn get_jfitems_all(state: &JellyfinState, user_id: &str) -> Result<Vec<JFItem>> {
     let mut items = Vec::new();
     for c in state.collections.get_collections() {
         for item in &c.items {
-            match make_jfitem(state, user_id, item, &c.id).await {
+            match make_jfitem_light(state, user_id, item, &c.id).await {
                 Ok(jfitem) => items.push(jfitem),
                 Err(e) => warn!("get_jfitems_all: {}", e),
             }
@@ -211,9 +212,31 @@ pub async fn make_jfitem(
     item: &Item,
     parent_id: &str,
 ) -> Result<JFItem> {
+    make_jfitem_inner(state, user_id, item, parent_id, false).await
+}
+
+/// make_jfitem_light builds a lightweight DTO that skips expensive computations
+/// (user_data DB lookups, media source generation, per-episode iteration for shows).
+/// Used for list queries where the client only needs base fields.
+pub async fn make_jfitem_light(
+    state: &JellyfinState,
+    user_id: &str,
+    item: &Item,
+    parent_id: &str,
+) -> Result<JFItem> {
+    make_jfitem_inner(state, user_id, item, parent_id, true).await
+}
+
+async fn make_jfitem_inner(
+    state: &JellyfinState,
+    user_id: &str,
+    item: &Item,
+    parent_id: &str,
+    lightweight: bool,
+) -> Result<JFItem> {
     match item {
-        Item::Movie(m) => make_jfitem_movie(state, user_id, m, parent_id).await,
-        Item::Show(s) => make_jfitem_show(state, user_id, s, parent_id).await,
+        Item::Movie(m) => make_jfitem_movie(state, user_id, m, parent_id, lightweight).await,
+        Item::Show(s) => make_jfitem_show(state, user_id, s, parent_id, lightweight).await,
         Item::Season(s) => make_jfitem_season(state, user_id, s).await,
         Item::Episode(e) => make_jfitem_episode(state, user_id, e).await,
     }
@@ -518,6 +541,7 @@ async fn make_jfitem_movie(
     user_id: &str,
     movie: &Movie,
     parent_id: &str,
+    lightweight: bool,
 ) -> Result<JFItem> {
     let genres = movie.metadata.genres.clone();
     let genre_items = make_jf_genre_items(&genres);
@@ -534,16 +558,21 @@ async fn make_jfitem_movie(
     // Set premiere date from metadata if available, else from file timestamp
     let premiere_date = movie.metadata.premiered.unwrap_or(movie.created);
 
-    let media_sources = make_media_source(
-        &movie.id,
-        &movie.file_name,
-        movie.file_size,
-        &movie.metadata,
-    );
-    let media_streams = media_sources
-        .first()
-        .map(|ms| ms.media_streams.clone())
-        .unwrap_or_default();
+    let (media_sources, media_streams) = if lightweight {
+        (Vec::new(), Vec::new())
+    } else {
+        let ms = make_media_source(
+            &movie.id,
+            &movie.file_name,
+            movie.file_size,
+            &movie.metadata,
+        );
+        let streams = ms
+            .first()
+            .map(|s| s.media_streams.clone())
+            .unwrap_or_default();
+        (ms, streams)
+    };
 
     // Image tags
     let mut image_tags = HashMap::new();
@@ -557,7 +586,11 @@ async fn make_jfitem_movie(
         image_tags.insert("Banner".to_string(), movie.id.clone());
     }
 
-    let user_data = get_user_data(state, user_id, &movie.id).await;
+    let user_data = if lightweight {
+        UserItemDataDto::default()
+    } else {
+        get_user_data(state, user_id, &movie.id).await
+    };
 
     #[rustfmt::skip]
     let item = JFItem {
@@ -611,6 +644,7 @@ async fn make_jfitem_show(
     user_id: &str,
     show: &Show,
     parent_id: &str,
+    lightweight: bool,
 ) -> Result<JFItem> {
     let genres = show.metadata.genres.clone();
     let genre_items = make_jf_genre_items(&genres);
@@ -642,9 +676,6 @@ async fn make_jfitem_show(
         image_tags.insert("Logo".to_string(), show.id.clone());
     }
 
-    // Get playstate of the show itself
-    let mut user_data = get_user_data(state, user_id, &show.id).await;
-
     let child_count = show.seasons.len() as i32;
 
     // Calculate recursive item count (total episodes)
@@ -653,37 +684,45 @@ async fn make_jfitem_show(
         recursive_item_count += s.episodes.len() as i64;
     }
 
-    // Calculate the number of played episodes in the show
-    if child_count > 0 {
-        let mut played_episodes = 0i32;
-        let mut total_episodes = 0i32;
-        let mut latest_played = chrono::DateTime::<Utc>::default();
+    // User data: in lightweight mode, skip the expensive per-episode DB iteration
+    let user_data = if lightweight {
+        UserItemDataDto::default()
+    } else {
+        let mut ud = get_user_data(state, user_id, &show.id).await;
 
-        for s in &show.seasons {
-            for e in &s.episodes {
-                total_episodes += 1;
-                if let Ok(ep_data) = state.repo.get_user_data(user_id, &e.id).await {
-                    if ep_data.played {
-                        played_episodes += 1;
-                        if ep_data.timestamp > latest_played {
-                            latest_played = ep_data.timestamp;
+        // Calculate the number of played episodes in the show
+        if child_count > 0 {
+            let mut played_episodes = 0i32;
+            let mut total_episodes = 0i32;
+            let mut latest_played = chrono::DateTime::<Utc>::default();
+
+            for s in &show.seasons {
+                for e in &s.episodes {
+                    total_episodes += 1;
+                    if let Ok(ep_data) = state.repo.get_user_data(user_id, &e.id).await {
+                        if ep_data.played {
+                            played_episodes += 1;
+                            if ep_data.timestamp > latest_played {
+                                latest_played = ep_data.timestamp;
+                            }
                         }
                     }
                 }
             }
-        }
 
-        if total_episodes > 0 {
-            user_data.unplayed_item_count = Some(total_episodes - played_episodes);
-            user_data.played_percentage =
-                Some(100.0 * played_episodes as f64 / total_episodes as f64);
-            user_data.last_played_date = Some(latest_played);
-            user_data.key = show.id.clone();
-            if played_episodes == total_episodes {
-                user_data.played = true;
+            if total_episodes > 0 {
+                ud.unplayed_item_count = Some(total_episodes - played_episodes);
+                ud.played_percentage =
+                    Some(100.0 * played_episodes as f64 / total_episodes as f64);
+                ud.last_played_date = Some(latest_played);
+                ud.key = show.id.clone();
+                if played_episodes == total_episodes {
+                    ud.played = true;
+                }
             }
         }
-    }
+        ud
+    };
 
     #[rustfmt::skip]
     let item = JFItem {
@@ -1300,7 +1339,7 @@ fn make_jf_display_preferences_id(dp_id: &str) -> String {
     format!("{}{}", ITEM_PREFIX_DISPLAY_PREFERENCES, dp_id)
 }
 
-fn make_jf_genre_id(genre: &str) -> String {
+pub fn make_jf_genre_id(genre: &str) -> String {
     format!("{}{}", ITEM_PREFIX_GENRE, id_hash(genre))
 }
 

@@ -33,9 +33,6 @@ pub async fn items_query(
     State(state): State<JellyfinState>,
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
-    // Debug: log all query params the handler receives
-    tracing::info!("items_query params: {:?}", query_params);
-
     let parent_id = query_params.get("parentId").cloned();
     let search_term = query_params.get("searchTerm").cloned();
     let recursive = query_params
@@ -56,9 +53,11 @@ pub async fn items_query(
             .await
             .map_err(|_| StatusCode::NOT_FOUND)?;
     } else {
-        items = get_jfitems_all(&state, &token.user_id)
-            .await
+        // Recursive query across all collections — pre-filter and pre-sort at the
+        // collection level to avoid building DTOs for all items when only a few are needed.
+        let result = query_items_presorted(&state, &token.user_id, &query_params).await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        return Ok(Json(result));
     }
 
     // If searchTerm is provided, search in whole collection
@@ -86,6 +85,128 @@ pub async fn items_query(
         start_index,
         total_record_count: total_item_count,
     }))
+}
+
+/// Pre-filter and pre-sort items at the collection level, then build DTOs
+/// only for the items that will actually be returned. This avoids building
+/// DTOs for all 6990+ items when the client only needs 3.
+async fn query_items_presorted(
+    state: &JellyfinState,
+    user_id: &str,
+    query_params: &HashMap<String, String>,
+) -> Result<UserItemsResponse, StatusCode> {
+    use crate::collection::Item;
+
+    // Collect type filter
+    let type_filter: Option<Vec<&str>> = query_params
+        .get("includeItemTypes")
+        .map(|t| t.split(',').collect());
+
+    // Genre filter: genreIds are "genre_<hash>" — we need to match by generating IDs from item genres
+    let genre_ids: Option<Vec<&str>> = query_params
+        .get("genreIds")
+        .map(|g| g.split('|').collect());
+
+    // Gather matching (item_ref, collection_id) pairs from all collections
+    let collections = state.collections.get_collections();
+    let mut matching: Vec<(&Item, &str)> = Vec::new();
+    for c in &collections {
+        for item in &c.items {
+            // Type filter
+            if let Some(ref types) = type_filter {
+                if !types.contains(&item.jf_type()) {
+                    continue;
+                }
+            }
+            // Genre filter
+            if let Some(ref gids) = genre_ids {
+                let item_genre_ids: Vec<String> = item
+                    .genres()
+                    .iter()
+                    .map(|g| super::jfitem2::make_jf_genre_id(g))
+                    .collect();
+                if !gids.iter().any(|gid| item_genre_ids.iter().any(|ig| ig == gid)) {
+                    continue;
+                }
+            }
+            matching.push((item, &c.id));
+        }
+    }
+
+    let total_item_count = matching.len() as i32;
+
+    // Sort at collection level
+    let sort_by = query_params.get("sortBy").cloned().unwrap_or_default();
+    let descending = query_params
+        .get("sortOrder")
+        .map(|s| s.eq_ignore_ascii_case("descending"))
+        .unwrap_or(false);
+
+    if !sort_by.is_empty() {
+        let sort_fields: Vec<String> = sort_by.split(',').map(|s| s.to_lowercase()).collect();
+        matching.sort_by(|(a, _), (b, _)| {
+            for field in &sort_fields {
+                let ord = match field.as_str() {
+                    "datecreated" | "datelastcontentadded" => a.created().cmp(&b.created()),
+                    "premieredate" => a.premiere_date().cmp(&b.premiere_date()),
+                    "communityrating" => {
+                        let ar = a.community_rating().unwrap_or(0.0);
+                        let br = b.community_rating().unwrap_or(0.0);
+                        ar.partial_cmp(&br).unwrap_or(std::cmp::Ordering::Equal)
+                    }
+                    "productionyear" => a.production_year().cmp(&b.production_year()),
+                    "name" | "sortname" | "seriessortname" | "default" => {
+                        a.sort_name().cmp(b.sort_name())
+                    }
+                    "random" => {
+                        let mut rng = rand::thread_rng();
+                        if rng.gen_bool(0.5) {
+                            std::cmp::Ordering::Less
+                        } else {
+                            std::cmp::Ordering::Greater
+                        }
+                    }
+                    _ => std::cmp::Ordering::Equal,
+                };
+                if ord != std::cmp::Ordering::Equal {
+                    return if descending { ord.reverse() } else { ord };
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
+    }
+
+    // Apply pagination
+    let start_index = query_params
+        .get("startIndex")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(0);
+    let limit = query_params
+        .get("limit")
+        .and_then(|v| v.parse::<usize>().ok());
+
+    let paged: Vec<(&Item, &str)> = matching
+        .into_iter()
+        .skip(start_index)
+        .take(limit.unwrap_or(usize::MAX))
+        .collect();
+
+    // Build DTOs only for the selected items
+    let mut items = Vec::with_capacity(paged.len());
+    for (item, collection_id) in paged {
+        match make_jfitem_light(state, user_id, item, collection_id).await {
+            Ok(dto) => items.push(dto),
+            Err(e) => warn!("query_items_presorted: {}", e),
+        }
+    }
+
+    apply_fields_filter(&mut items, query_params);
+
+    Ok(UserItemsResponse {
+        items,
+        start_index: start_index as i32,
+        total_record_count: total_item_count,
+    })
 }
 
 /// GET /Items/Latest - Get latest items

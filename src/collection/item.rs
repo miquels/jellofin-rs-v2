@@ -223,6 +223,73 @@ impl Item {
             Item::Episode(e) => Some(e.duration()),
         }
     }
+
+    /// Returns the Jellyfin item type string for this item.
+    pub fn jf_type(&self) -> &'static str {
+        match self {
+            Item::Movie(_) => "Movie",
+            Item::Show(_) => "Series",
+            Item::Season(_) => "Season",
+            Item::Episode(_) => "Episode",
+        }
+    }
+
+    /// Returns the sort name for this item.
+    pub fn sort_name(&self) -> &str {
+        match self {
+            Item::Movie(m) => &m.sort_name,
+            Item::Show(s) => &s.sort_name,
+            Item::Season(s) => &s.name,
+            Item::Episode(e) => &e.sort_name,
+        }
+    }
+
+    /// Returns the created/date for this item (used for DateCreated / DateLastContentAdded sorting).
+    pub fn created(&self) -> DateTime<Utc> {
+        match self {
+            Item::Movie(m) => m.created,
+            Item::Show(s) => s.first_video,
+            Item::Season(_) => DateTime::<Utc>::default(),
+            Item::Episode(e) => e.created,
+        }
+    }
+
+    /// Returns the premiere date if available.
+    pub fn premiere_date(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Item::Movie(m) => m.metadata.premiered.or(Some(m.created)),
+            Item::Show(s) => s.metadata.premiered.or(Some(s.first_video)),
+            Item::Season(_) => None,
+            Item::Episode(_) => None,
+        }
+    }
+
+    /// Returns community rating if available.
+    pub fn community_rating(&self) -> Option<f32> {
+        match self {
+            Item::Movie(m) => m.metadata.rating,
+            Item::Show(s) => s.metadata.rating,
+            _ => None,
+        }
+    }
+
+    /// Returns production year if available.
+    pub fn production_year(&self) -> Option<i32> {
+        match self {
+            Item::Movie(m) => m.metadata.year,
+            Item::Show(s) => s.metadata.year,
+            _ => None,
+        }
+    }
+
+    /// Returns genre names for this item.
+    pub fn genres(&self) -> &[String] {
+        match self {
+            Item::Movie(m) => &m.metadata.genres,
+            Item::Show(s) => &s.metadata.genres,
+            _ => &[],
+        }
+    }
 }
 
 /// ItemRef enum - for borrowing without ownership
