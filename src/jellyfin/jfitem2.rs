@@ -52,11 +52,7 @@ const TAG_PREFIX_FILE: &str = "file_";
 // ---------------------------------------------------------------------------
 
 /// get_jfitems_by_parent_id returns a list of all items with a specific parent_id.
-pub async fn get_jfitems_by_parent_id(
-    state: &JellyfinState,
-    user_id: &str,
-    parent_id: &str,
-) -> Result<Vec<JFItem>> {
+pub async fn get_jfitems_by_parent_id(state: &JellyfinState, user_id: &str, parent_id: &str) -> Result<Vec<JFItem>> {
     // List favorites collection items requested?
     if is_jf_collection_favorites_id(parent_id) {
         return make_jfitem_favorites_overview(state, user_id)
@@ -145,10 +141,7 @@ pub async fn get_jfitems_by_parent_id(
                     .with_context(|| "could not find season");
             }
             _ => {
-                warn!(
-                    "get_jfitems_by_parent_id: unsupported parent_id {}",
-                    parent_id
-                );
+                warn!("get_jfitems_by_parent_id: unsupported parent_id {}", parent_id);
                 bail!("unsupported parent_id type");
             }
         }
@@ -173,11 +166,7 @@ pub async fn get_jfitems_all(state: &JellyfinState, user_id: &str) -> Result<Vec
 }
 
 /// make_jfitem_by_id creates a JFItem based on the provided item_id.
-pub async fn make_jfitem_by_id(
-    state: &JellyfinState,
-    user_id: &str,
-    item_id: &str,
-) -> Result<JFItem> {
+pub async fn make_jfitem_by_id(state: &JellyfinState, user_id: &str, item_id: &str) -> Result<JFItem> {
     // Handle special items first
     if is_jf_root_id(item_id) {
         return make_jfitem_root(state, user_id).await;
@@ -206,24 +195,14 @@ pub async fn make_jfitem_by_id(
 }
 
 /// make_jfitem dispatches to the correct make function based on item type.
-pub async fn make_jfitem(
-    state: &JellyfinState,
-    user_id: &str,
-    item: &Item,
-    parent_id: &str,
-) -> Result<JFItem> {
+pub async fn make_jfitem(state: &JellyfinState, user_id: &str, item: &Item, parent_id: &str) -> Result<JFItem> {
     make_jfitem_inner(state, user_id, item, parent_id, false).await
 }
 
 /// make_jfitem_light builds a lightweight DTO that skips expensive computations
 /// (user_data DB lookups, media source generation, per-episode iteration for shows).
 /// Used for list queries where the client only needs base fields.
-pub async fn make_jfitem_light(
-    state: &JellyfinState,
-    user_id: &str,
-    item: &Item,
-    parent_id: &str,
-) -> Result<JFItem> {
+pub async fn make_jfitem_light(state: &JellyfinState, user_id: &str, item: &Item, parent_id: &str) -> Result<JFItem> {
     make_jfitem_inner(state, user_id, item, parent_id, true).await
 }
 
@@ -283,10 +262,7 @@ pub async fn make_jfitem_root(state: &JellyfinState, user_id: &str) -> Result<JF
 
 /// make_jfcollection_root_overview creates a list of items representing
 /// the collections available to the user.
-pub async fn make_jfcollection_root_overview(
-    state: &JellyfinState,
-    user_id: &str,
-) -> Result<Vec<JFItem>> {
+pub async fn make_jfcollection_root_overview(state: &JellyfinState, user_id: &str) -> Result<Vec<JFItem>> {
     let mut items = Vec::new();
     for c in state.collections.get_collections() {
         if let Ok(item) = make_jfitem_collection(state, &c.id) {
@@ -351,16 +327,8 @@ pub fn make_jfitem_collection(state: &JellyfinState, collection_id: &str) -> Res
 }
 
 /// make_jfitem_collection_favorites creates a collection item for the favorites folder.
-pub async fn make_jfitem_collection_favorites(
-    state: &JellyfinState,
-    user_id: &str,
-) -> Result<JFItem> {
-    let item_count = state
-        .repo
-        .get_favorites(user_id)
-        .await
-        .map(|f| f.len() as i32)
-        .ok();
+pub async fn make_jfitem_collection_favorites(state: &JellyfinState, user_id: &str) -> Result<JFItem> {
+    let item_count = state.repo.get_favorites(user_id).await.map(|f| f.len() as i32).ok();
 
     let id = make_jf_collection_favorites_id(FAVORITES_COLLECTION_ID);
 
@@ -394,22 +362,17 @@ pub async fn make_jfitem_collection_favorites(
 }
 
 /// make_jfitem_favorites_overview creates a list of favorite items.
-async fn make_jfitem_favorites_overview(
-    state: &JellyfinState,
-    user_id: &str,
-) -> Result<Vec<JFItem>> {
+async fn make_jfitem_favorites_overview(state: &JellyfinState, user_id: &str) -> Result<Vec<JFItem>> {
     let favorite_ids = state.repo.get_favorites(user_id).await?;
     let mut items = Vec::new();
     for item_id in &favorite_ids {
         if let Some((c, item)) = state.collections.get_item_by_id(item_id) {
             // We only add movies and shows in favorites
             match &item {
-                Item::Movie(_) | Item::Show(_) => {
-                    match make_jfitem(state, user_id, &item, &c.id).await {
-                        Ok(jfitem) => items.push(jfitem),
-                        Err(e) => warn!("make_jfitem_favorites_overview: {}", e),
-                    }
-                }
+                Item::Movie(_) | Item::Show(_) => match make_jfitem(state, user_id, &item, &c.id).await {
+                    Ok(jfitem) => items.push(jfitem),
+                    Err(e) => warn!("make_jfitem_favorites_overview: {}", e),
+                },
                 _ => {}
             }
         }
@@ -419,10 +382,7 @@ async fn make_jfitem_favorites_overview(
 
 /// make_jfitem_collection_playlist creates a top level collection item
 /// representing all playlists of the user.
-pub async fn make_jfitem_collection_playlist(
-    state: &JellyfinState,
-    user_id: &str,
-) -> Result<JFItem> {
+pub async fn make_jfitem_collection_playlist(state: &JellyfinState, user_id: &str) -> Result<JFItem> {
     let mut item_count = 0i32;
     if let Ok(playlist_ids) = state.repo.get_playlists(user_id).await {
         for id in &playlist_ids {
@@ -464,11 +424,7 @@ pub async fn make_jfitem_collection_playlist(
 }
 
 /// make_jfitem_playlist creates a playlist item.
-async fn make_jfitem_playlist(
-    state: &JellyfinState,
-    user_id: &str,
-    playlist_id: &str,
-) -> Result<JFItem> {
+async fn make_jfitem_playlist(state: &JellyfinState, user_id: &str, playlist_id: &str) -> Result<JFItem> {
     let playlist = state.repo.get_playlist(user_id, playlist_id).await?;
 
     #[rustfmt::skip]
@@ -498,10 +454,7 @@ async fn make_jfitem_playlist(
 }
 
 /// make_jfitem_playlist_overview creates a list of playlists of the user.
-pub async fn make_jfitem_playlist_overview(
-    state: &JellyfinState,
-    user_id: &str,
-) -> Result<Vec<JFItem>> {
+pub async fn make_jfitem_playlist_overview(state: &JellyfinState, user_id: &str) -> Result<Vec<JFItem>> {
     let playlist_ids = state.repo.get_playlists(user_id).await?;
     let mut items = Vec::new();
     for id in &playlist_ids {
@@ -513,11 +466,7 @@ pub async fn make_jfitem_playlist_overview(
 }
 
 /// make_jfitem_playlist_itemlist creates an item list of one playlist of the user.
-async fn make_jfitem_playlist_itemlist(
-    state: &JellyfinState,
-    user_id: &str,
-    playlist_id: &str,
-) -> Result<Vec<JFItem>> {
+async fn make_jfitem_playlist_itemlist(state: &JellyfinState, user_id: &str, playlist_id: &str) -> Result<Vec<JFItem>> {
     let playlist = state.repo.get_playlist(user_id, playlist_id).await?;
     let mut items = Vec::new();
     for item_id in &playlist.item_ids {
@@ -561,16 +510,8 @@ async fn make_jfitem_movie(
     let (media_sources, media_streams) = if lightweight {
         (Vec::new(), Vec::new())
     } else {
-        let ms = make_media_source(
-            &movie.id,
-            &movie.file_name,
-            movie.file_size,
-            &movie.metadata,
-        );
-        let streams = ms
-            .first()
-            .map(|s| s.media_streams.clone())
-            .unwrap_or_default();
+        let ms = make_media_source(&movie.id, &movie.file_name, movie.file_size, &movie.metadata);
+        let streams = ms.first().map(|s| s.media_streams.clone()).unwrap_or_default();
         (ms, streams)
     };
 
@@ -712,8 +653,7 @@ async fn make_jfitem_show(
 
             if total_episodes > 0 {
                 ud.unplayed_item_count = Some(total_episodes - played_episodes);
-                ud.played_percentage =
-                    Some(100.0 * played_episodes as f64 / total_episodes as f64);
+                ud.played_percentage = Some(100.0 * played_episodes as f64 / total_episodes as f64);
                 ud.last_played_date = Some(latest_played);
                 ud.key = show.id.clone();
                 if played_episodes == total_episodes {
@@ -741,7 +681,6 @@ async fn make_jfitem_show(
         etag:                        Some(id_hash(&show.id)),
         date_created:                Some(show.first_video),
         premiere_date:               Some(premiere_date),
-        production_year:             show.metadata.year,
         primary_image_aspect_ratio:  Some(0.6666666666666666),
         can_delete:                  Some(false),
         can_download:                Some(true),
@@ -751,6 +690,7 @@ async fn make_jfitem_show(
         overview:                    show.metadata.plot.clone(),
         official_rating:             show.metadata.official_rating.clone(),
         community_rating:            show.metadata.rating,
+        production_year:             show.metadata.year,
         taglines:                    show.metadata.taglines.clone(),
         child_count:                 Some(child_count),
         recursive_item_count:        Some(recursive_item_count),
@@ -761,11 +701,7 @@ async fn make_jfitem_show(
 }
 
 /// make_jfitem_seasons_overview generates all season items for a show.
-pub async fn make_jfitem_seasons_overview(
-    state: &JellyfinState,
-    user_id: &str,
-    show: &Show,
-) -> Result<Vec<JFItem>> {
+pub async fn make_jfitem_seasons_overview(state: &JellyfinState, user_id: &str, show: &Show) -> Result<Vec<JFItem>> {
     let mut seasons = Vec::with_capacity(show.seasons.len());
     for s in &show.seasons {
         match make_jfitem_season(state, user_id, s).await {
@@ -781,11 +717,7 @@ pub async fn make_jfitem_seasons_overview(
 }
 
 /// make_jfitem_season creates a season item.
-async fn make_jfitem_season(
-    state: &JellyfinState,
-    user_id: &str,
-    season: &Season,
-) -> Result<JFItem> {
+async fn make_jfitem_season(state: &JellyfinState, user_id: &str, season: &Season) -> Result<JFItem> {
     // Look up the full season + show context
     let (_collection, show, season) = state
         .collections
@@ -807,18 +739,12 @@ async fn make_jfitem_season(
     };
 
     // Season premiere date from first episode
-    let premiere_date = season
-        .episodes
-        .first()
-        .and_then(|e| e.metadata.premiered);
+    let premiere_date = season.episodes.first().and_then(|e| e.metadata.premiered);
 
     // Image tags
     let mut image_tags = HashMap::new();
     if !season.poster().is_empty() {
-        image_tags.insert(
-            "Primary".to_string(),
-            make_jf_season_id(&season.id),
-        );
+        image_tags.insert("Primary".to_string(), make_jf_season_id(&season.id));
     }
 
     // Get playstate of the season itself
@@ -841,8 +767,7 @@ async fn make_jfitem_season(
     // Populate playstate fields
     user_data.unplayed_item_count = Some(child_count - played_episodes);
     if child_count > 0 {
-        user_data.played_percentage =
-            Some(100.0 * played_episodes as f64 / child_count as f64);
+        user_data.played_percentage = Some(100.0 * played_episodes as f64 / child_count as f64);
     }
     user_data.last_played_date = Some(latest_played);
     if played_episodes == child_count && child_count > 0 {
@@ -896,11 +821,7 @@ pub async fn make_jfitem_episodes_overview(
 }
 
 /// make_jfitem_episode creates an episode item.
-pub async fn make_jfitem_episode(
-    state: &JellyfinState,
-    user_id: &str,
-    episode: &Episode,
-) -> Result<JFItem> {
+pub async fn make_jfitem_episode(state: &JellyfinState, user_id: &str, episode: &Episode) -> Result<JFItem> {
     // Look up the full episode + season + show context
     let (_collection, show, season, episode) = state
         .collections
@@ -937,12 +858,7 @@ pub async fn make_jfitem_episode(
         Some(episode.created)
     };
 
-    let media_sources = make_media_source(
-        &episode.id,
-        &episode.file_name,
-        episode.file_size,
-        &episode.metadata,
-    );
+    let media_sources = make_media_source(&episode.id, &episode.file_name, episode.file_size, &episode.metadata);
     let media_streams = media_sources
         .first()
         .map(|ms| ms.media_streams.clone())
@@ -1055,11 +971,7 @@ pub fn make_jfitem_studio(state: &JellyfinState, studio: &str) -> JFItem {
 // ---------------------------------------------------------------------------
 
 /// get_user_data fetches user data from the database, returning a default if not found.
-async fn get_user_data(
-    state: &JellyfinState,
-    user_id: &str,
-    item_id: &str,
-) -> UserItemDataDto {
+async fn get_user_data(state: &JellyfinState, user_id: &str, item_id: &str) -> UserItemDataDto {
     let db_data = state.repo.get_user_data(user_id, item_id).await.ok();
     make_jf_userdata(user_id, item_id, db_data.as_ref())
 }
@@ -1087,11 +999,7 @@ fn make_jf_studio_pairs(studios: &[String]) -> Vec<NameGuidPair> {
 }
 
 /// make_jf_userdata creates a UserItemDataDto, populating from DbUserData if provided.
-pub fn make_jf_userdata(
-    user_id: &str,
-    item_id: &str,
-    data: Option<&DbUserData>,
-) -> UserItemDataDto {
+pub fn make_jf_userdata(user_id: &str, item_id: &str, data: Option<&DbUserData>) -> UserItemDataDto {
     let mut ud = UserItemDataDto {
         key: format!("{}/{}", user_id, item_id),
         item_id: "00000000000000000000000000000000".to_string(),
@@ -1114,11 +1022,7 @@ pub(super) fn make_media_source(
     file_size: i64,
     metadata: &crate::collection::Metadata,
 ) -> Vec<MediaSourceInfo> {
-    let container = file_name
-        .rsplit('.')
-        .next()
-        .unwrap_or("mp4")
-        .to_string();
+    let container = file_name.rsplit('.').next().unwrap_or("mp4").to_string();
 
     let runtime_ticks = metadata.runtime_ticks();
     let bitrate = metadata
@@ -1160,11 +1064,7 @@ pub(super) fn make_media_source(
 /// make_jf_media_streams creates media stream information from metadata.
 fn make_jf_media_streams(metadata: &crate::collection::Metadata) -> Vec<MediaStream> {
     // Video stream
-    let video_codec = metadata
-        .video_codec
-        .as_deref()
-        .unwrap_or("unknown")
-        .to_lowercase();
+    let video_codec = metadata.video_codec.as_deref().unwrap_or("unknown").to_lowercase();
     let (codec, codec_tag) = match video_codec.as_str() {
         "avc" | "x264" | "h264" => ("h264", Some("avc1")),
         "x265" | "h265" | "hevc" => ("hevc", Some("hvc1")),
@@ -1218,11 +1118,7 @@ fn make_jf_media_streams(metadata: &crate::collection::Metadata) -> Vec<MediaStr
         _ => ("Unknown", "unknown"),
     };
 
-    let audio_codec_str = metadata
-        .audio_codec
-        .as_deref()
-        .unwrap_or("unknown")
-        .to_lowercase();
+    let audio_codec_str = metadata.audio_codec.as_deref().unwrap_or("unknown").to_lowercase();
     let (a_codec, a_codec_tag) = match audio_codec_str.as_str() {
         "ac3" => ("ac3", Some("ac-3")),
         "aac" => ("aac", Some("mp4a")),

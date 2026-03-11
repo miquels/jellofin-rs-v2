@@ -4,7 +4,7 @@ use axum::{
     Extension,
 };
 use chrono::Utc;
-use tracing::info;
+use tracing::{error, info};
 
 use super::jellyfin::JellyfinState;
 use super::jfitem2::*;
@@ -57,10 +57,9 @@ pub async fn users_played_items_post(
     Path(params): Path<(String, String)>,
 ) -> StatusCode {
     let item_id = &params.1;
-    if user_data_update(&state, &token.user_id, item_id, 0, true).await.is_ok() {
-        StatusCode::OK
-    } else {
-        StatusCode::INTERNAL_SERVER_ERROR
+    match user_data_update(&state, &token.user_id, item_id, 0, true).await {
+        Ok(_) => StatusCode::OK,
+        Err(e) => { error!("users_played_items_post: {}", e); StatusCode::INTERNAL_SERVER_ERROR }
     }
 }
 
@@ -69,13 +68,9 @@ pub async fn users_played_items_post_simple(
     State(state): State<JellyfinState>,
     Path(item_id): Path<String>,
 ) -> StatusCode {
-    if user_data_update(&state, &token.user_id, &item_id, 0, true)
-        .await
-        .is_ok()
-    {
-        StatusCode::OK
-    } else {
-        StatusCode::INTERNAL_SERVER_ERROR
+    match user_data_update(&state, &token.user_id, &item_id, 0, true).await {
+        Ok(_) => StatusCode::OK,
+        Err(e) => { error!("users_played_items_post_simple: {}", e); StatusCode::INTERNAL_SERVER_ERROR }
     }
 }
 
@@ -87,13 +82,9 @@ pub async fn users_played_items_delete(
     Path(params): Path<(String, String)>,
 ) -> StatusCode {
     let item_id = &params.1;
-    if user_data_update(&state, &token.user_id, item_id, 0, false)
-        .await
-        .is_ok()
-    {
-        StatusCode::OK
-    } else {
-        StatusCode::INTERNAL_SERVER_ERROR
+    match user_data_update(&state, &token.user_id, item_id, 0, false).await {
+        Ok(_) => StatusCode::OK,
+        Err(e) => { error!("users_played_items_delete: {}", e); StatusCode::INTERNAL_SERVER_ERROR }
     }
 }
 
@@ -102,13 +93,9 @@ pub async fn users_played_items_delete_simple(
     State(state): State<JellyfinState>,
     Path(item_id): Path<String>,
 ) -> StatusCode {
-    if user_data_update(&state, &token.user_id, &item_id, 0, false)
-        .await
-        .is_ok()
-    {
-        StatusCode::OK
-    } else {
-        StatusCode::INTERNAL_SERVER_ERROR
+    match user_data_update(&state, &token.user_id, &item_id, 0, false).await {
+        Ok(_) => StatusCode::OK,
+        Err(e) => { error!("users_played_items_delete_simple: {}", e); StatusCode::INTERNAL_SERVER_ERROR }
     }
 }
 
@@ -118,13 +105,9 @@ pub async fn sessions_playing(
     State(state): State<JellyfinState>,
     Json(req): Json<UpdatePlayStateRequest>,
 ) -> StatusCode {
-    if user_data_update(&state, &token.user_id, &req.item_id, req.position_ticks, false)
-        .await
-        .is_ok()
-    {
-        StatusCode::NO_CONTENT
-    } else {
-        StatusCode::INTERNAL_SERVER_ERROR
+    match user_data_update(&state, &token.user_id, &req.item_id, req.position_ticks, false).await {
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(e) => { error!("sessions_playing: {}", e); StatusCode::INTERNAL_SERVER_ERROR }
     }
 }
 
@@ -134,13 +117,9 @@ pub async fn sessions_playing_progress(
     State(state): State<JellyfinState>,
     Json(req): Json<UpdatePlayStateRequest>,
 ) -> StatusCode {
-    if user_data_update(&state, &token.user_id, &req.item_id, req.position_ticks, false)
-        .await
-        .is_ok()
-    {
-        StatusCode::NO_CONTENT
-    } else {
-        StatusCode::INTERNAL_SERVER_ERROR
+    match user_data_update(&state, &token.user_id, &req.item_id, req.position_ticks, false).await {
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(e) => { error!("sessions_playing_progress: {}", e); StatusCode::INTERNAL_SERVER_ERROR }
     }
 }
 
@@ -150,13 +129,9 @@ pub async fn sessions_playing_stopped(
     State(state): State<JellyfinState>,
     Json(req): Json<UpdatePlayStateRequest>,
 ) -> StatusCode {
-    if user_data_update(&state, &token.user_id, &req.item_id, req.position_ticks, false)
-        .await
-        .is_ok()
-    {
-        StatusCode::NO_CONTENT
-    } else {
-        StatusCode::INTERNAL_SERVER_ERROR
+    match user_data_update(&state, &token.user_id, &req.item_id, req.position_ticks, false).await {
+        Ok(_) => StatusCode::NO_CONTENT,
+        Err(e) => { error!("sessions_playing_stopped: {}", e); StatusCode::INTERNAL_SERVER_ERROR }
     }
 }
 

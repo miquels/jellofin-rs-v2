@@ -33,14 +33,6 @@ impl SqliteRepository {
         // Initialize schema
         Self::init_schema(&pool).await?;
 
-        // Migrate: add timestamp columns to playlists if missing
-        let _ = sqlx::query("ALTER TABLE playlists ADD COLUMN created TEXT NOT NULL DEFAULT (datetime('now'))")
-            .execute(&pool)
-            .await;
-        let _ = sqlx::query("ALTER TABLE playlists ADD COLUMN last_updated TEXT NOT NULL DEFAULT (datetime('now'))")
-            .execute(&pool)
-            .await;
-
         let repo = Self {
             pool,
             access_token_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -218,6 +210,8 @@ impl SqliteRepository {
         )
         .fetch_all(&self.pool)
         .await?;
+
+        tracing::info!("Loaded {} user_data rows from database", rows.len());
 
         let mut cache = self.user_data_cache.lock().await;
         for row in rows {
@@ -551,22 +545,47 @@ impl ItemRepo for SqliteRepository {
 #[async_trait]
 impl UserDataRepo for SqliteRepository {
     async fn get_user_data(&self, user_id: &str, item_id: &str) -> Result<UserData> {
+        // Check cache first
         let cache = self.user_data_cache.lock().await;
         let key = (user_id.to_string(), item_id.to_string());
-
         if let Some(data) = cache.get(&key) {
             return Ok(data.clone());
         }
+        drop(cache);
 
-        // Return default if not found
-        Ok(UserData {
-            position: 0,
-            played_percentage: 0,
-            play_count: 0,
-            played: false,
-            favorite: false,
-            timestamp: chrono::Utc::now(),
-        })
+        // Fall through to DB
+        let row = sqlx::query_as::<_, (i64, i32, i32, bool, bool, i64)>(
+            "SELECT position, played_percentage, play_count, played, favorite, timestamp FROM user_data WHERE user_id = ? AND item_id = ?"
+        )
+        .bind(user_id)
+        .bind(item_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let data = match row {
+            Some(r) => UserData {
+                position: r.0,
+                played_percentage: r.1,
+                play_count: r.2,
+                played: r.3,
+                favorite: r.4,
+                timestamp: chrono::DateTime::from_timestamp(r.5, 0).unwrap_or_default(),
+            },
+            None => UserData {
+                position: 0,
+                played_percentage: 0,
+                play_count: 0,
+                played: false,
+                favorite: false,
+                timestamp: chrono::Utc::now(),
+            },
+        };
+
+        // Populate cache for future reads
+        let mut cache = self.user_data_cache.lock().await;
+        cache.insert((user_id.to_string(), item_id.to_string()), data.clone());
+
+        Ok(data)
     }
 
     async fn get_favorites(&self, user_id: &str) -> Result<Vec<String>> {
@@ -593,8 +612,10 @@ impl UserDataRepo for SqliteRepository {
     }
 
     async fn update_user_data(&self, user_id: &str, item_id: &str, details: &UserData) -> Result<()> {
-        // Write-through: persist to DB first
-        sqlx::query("INSERT OR REPLACE INTO user_data VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+        // Write-through: persist to DB first, then update cache
+        sqlx::query(
+            "INSERT OR REPLACE INTO user_data (user_id, item_id, position, played_percentage, play_count, played, favorite, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
             .bind(user_id)
             .bind(item_id)
             .bind(details.position)
@@ -604,9 +625,12 @@ impl UserDataRepo for SqliteRepository {
             .bind(details.favorite)
             .bind(details.timestamp.timestamp())
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to write user_data for user={}, item={}: {}", user_id, item_id, e);
+                DatabaseError::Sqlx(e)
+            })?;
 
-        // Then update cache
         let mut cache = self.user_data_cache.lock().await;
         let key = (user_id.to_string(), item_id.to_string());
         cache.insert(key, details.clone());
