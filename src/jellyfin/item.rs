@@ -868,6 +868,18 @@ fn apply_fields_filter(items: &mut Vec<BaseItemDto>, query_params: &HashMap<Stri
         if !fields.contains("DisplayPreferencesId") {
             item.display_preferences_id = None;
         }
+        if !fields.contains("ParentId") {
+            item.parent_id = None;
+        }
+        if !fields.contains("PrimaryImageAspectRatio") {
+            item.primary_image_aspect_ratio = None;
+        }
+        if !fields.contains("PlayAccess") {
+            item.play_access = None;
+        }
+        if !fields.contains("EnableMediaSourceDisplay") {
+            item.enable_media_source_display = None;
+        }
     }
 }
 
