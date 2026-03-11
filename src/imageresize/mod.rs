@@ -119,7 +119,7 @@ impl ImageResizer {
         let w = width.unwrap_or(0);
         let h = height.unwrap_or(0);
         let q = quality.unwrap_or(0);
-        format!("{:16x}-{}-{}x{}q{}.{}", hash_val, inode, w, h, q, ext)
+        format!("{:016x}-{}-{}x{}q{}.{}", hash_val, inode, w, h, q, ext)
     }
 
     /// Resize image and save to cache

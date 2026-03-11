@@ -75,6 +75,8 @@ pub trait PlaylistRepo {
     async fn get_playlists(&self, user_id: &str) -> Result<Vec<String>>;
     /// Get a specific playlist.
     async fn get_playlist(&self, user_id: &str, playlist_id: &str) -> Result<Playlist>;
+    /// Get a playlist by name for a user.
+    async fn get_playlist_by_name(&self, user_id: &str, name: &str) -> Result<Playlist>;
     /// Add items to a playlist.
     async fn add_items_to_playlist(&self, user_id: &str, playlist_id: &str, item_ids: &[String]) -> Result<()>;
     /// Delete items from a playlist.

@@ -503,6 +503,26 @@ impl PlaylistRepo for SqliteRepository {
         })
     }
 
+    async fn get_playlist_by_name(&self, user_id: &str, name: &str) -> Result<Playlist> {
+        let row = sqlx::query_as::<_, (String, String, String, String)>(
+            "SELECT id, user_id, name, item_ids FROM playlists WHERE user_id = ? AND name = ?",
+        )
+        .bind(user_id)
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(DatabaseError::NotFound)?;
+
+        let item_ids: Vec<String> = serde_json::from_str(&row.3)?;
+
+        Ok(Playlist {
+            id: row.0,
+            user_id: row.1,
+            name: row.2,
+            item_ids,
+        })
+    }
+
     async fn add_items_to_playlist(&self, _user_id: &str, playlist_id: &str, item_ids: &[String]) -> Result<()> {
         let row = sqlx::query_as::<_, (String,)>("SELECT item_ids FROM playlists WHERE id = ?")
             .bind(playlist_id)

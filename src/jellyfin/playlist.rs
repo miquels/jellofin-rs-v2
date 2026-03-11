@@ -55,6 +55,17 @@ pub async fn create_playlist(
         }
     }
 
+    // Check if a playlist with this name already exists for the user
+    if let Ok(existing) = state.repo.get_playlist_by_name(&user_id, &name).await {
+        return (
+            StatusCode::OK,
+            Json(CreatePlaylistResponse {
+                id: format!("playlist_{}", existing.id),
+            }),
+        )
+            .into_response();
+    }
+
     let new_playlist = Playlist {
         id: String::new(), // Repo will generate
         user_id: user_id.clone(),

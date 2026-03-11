@@ -125,7 +125,12 @@ fn scan_show_directory(path: &Path, collection_root: &str) -> Option<Show> {
     // Scan for seasons
     let mut seasons = Vec::new();
 
-    for entry in WalkDir::new(path).max_depth(1).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(path)
+        .follow_links(true)
+        .max_depth(1)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if !entry.file_type().is_dir() {
             continue;
         }
@@ -192,7 +197,12 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
     let mut episodes = Vec::new();
 
     // Find all video files in season directory
-    for entry in WalkDir::new(path).max_depth(1).into_iter().filter_map(|e| e.ok()) {
+    for entry in WalkDir::new(path)
+        .follow_links(true)
+        .max_depth(1)
+        .into_iter()
+        .filter_map(|e| e.ok())
+    {
         if !entry.file_type().is_file() {
             continue;
         }
