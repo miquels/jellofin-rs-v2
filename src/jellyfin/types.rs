@@ -738,8 +738,8 @@ pub struct UserItemDataDto {
     pub item_id: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "PascalCase")]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "PascalCase")]
 pub struct UpdatePlayStateRequest {
     pub can_seek: bool,
     pub repeat_mode: String,

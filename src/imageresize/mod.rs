@@ -1,6 +1,7 @@
 use image::{DynamicImage, GenericImageView, ImageFormat};
 use sha2::{Digest, Sha256};
 use std::fs;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 
 /// Image resizer with caching
@@ -44,8 +45,17 @@ impl ImageResizer {
             return source_path.to_path_buf();
         }
 
+        // See if it exists.
+        let metadata = match source_path.metadata() {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                tracing::debug!("Failed to get metadata for {}: {}", source_path.display(), e);
+                return source_path.to_path_buf();
+            }
+        };
+
         // Generate cache key
-        let cache_key = self.generate_cache_key(source_path, width, height, quality);
+        let cache_key = self.generate_cache_key(source_path, metadata.ino(), width, height, quality);
 
         // Sharding logic: use first 2 chars of cache key
         if cache_key.len() < 2 {
@@ -69,7 +79,11 @@ impl ImageResizer {
             return source_path.to_path_buf(); // Return original if we can't allow caching
         }
 
-        tracing::debug!("Resizing/caching: {} -> {}", source_path.display(), cache_path.display());
+        tracing::debug!(
+            "Resizing/caching: {} -> {}",
+            source_path.display(),
+            cache_path.display()
+        );
 
         // Resize and cache
         match self.resize_and_cache(source_path, &cache_path, width, height, quality) {
@@ -89,19 +103,23 @@ impl ImageResizer {
     fn generate_cache_key(
         &self,
         source_path: &Path,
+        inode: u64,
         width: Option<u32>,
         height: Option<u32>,
         quality: Option<u32>,
     ) -> String {
         let mut hasher = Sha256::new();
-        hasher.update(source_path.to_string_lossy().as_bytes());
-        hasher.update(format!("{:?}x{:?}q{:?}", width, height, quality).as_bytes());
+        hasher.update(source_path.as_os_str().as_encoded_bytes());
         let hash = hasher.finalize();
+        let hash_val = u64::from_be_bytes(hash[..8].try_into().unwrap());
 
         // Get file extension
         let ext = source_path.extension().and_then(|e| e.to_str()).unwrap_or("jpg");
 
-        format!("{:x}.{}", hash, ext)
+        let w = width.unwrap_or(0);
+        let h = height.unwrap_or(0);
+        let q = quality.unwrap_or(0);
+        format!("{:16x}-{}-{}x{}q{}.{}", hash_val, inode, w, h, q, ext)
     }
 
     /// Resize image and save to cache
@@ -209,9 +227,9 @@ mod tests {
         let resizer = ImageResizer::new(temp_dir.clone()).unwrap();
 
         let path = Path::new("/test/image.jpg");
-        let key1 = resizer.generate_cache_key(path, Some(100), Some(100), Some(90));
-        let key2 = resizer.generate_cache_key(path, Some(100), Some(100), Some(90));
-        let key3 = resizer.generate_cache_key(path, Some(200), Some(200), Some(90));
+        let key1 = resizer.generate_cache_key(path, 1, Some(100), Some(100), Some(90));
+        let key2 = resizer.generate_cache_key(path, 1, Some(100), Some(100), Some(90));
+        let key3 = resizer.generate_cache_key(path, 1, Some(200), Some(200), Some(90));
 
         assert_eq!(key1, key2);
         assert_ne!(key1, key3);

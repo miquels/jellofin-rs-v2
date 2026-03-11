@@ -59,6 +59,7 @@ pub async fn run(config_path: String, debug: bool) -> Result<(), Box<dyn std::er
     let db_path_str = db_path.to_str().ok_or("Invalid database path")?.to_string();
 
     let repo = Arc::new(SqliteRepository::new(&db_path_str).await?);
+    repo.start_background_jobs();
     info!("Database initialized at {}", db_path_str);
 
     // Initialize collection repository

@@ -587,9 +587,9 @@ async fn make_jfitem_movie(
     }
 
     let user_data = if lightweight {
-        UserItemDataDto::default()
+        None
     } else {
-        get_user_data(state, user_id, &movie.id).await
+        Some(get_user_data(state, user_id, &movie.id).await)
     };
 
     #[rustfmt::skip]
@@ -632,7 +632,7 @@ async fn make_jfitem_movie(
         has_subtitles:               !movie.srt_subs.is_empty() || !movie.vtt_subs.is_empty(),
         media_sources,
         media_streams,
-        user_data:                   Some(user_data),
+        user_data,
         ..Default::default()
     };
     Ok(item)
@@ -684,9 +684,9 @@ async fn make_jfitem_show(
         recursive_item_count += s.episodes.len() as i64;
     }
 
-    // User data: in lightweight mode, skip the expensive per-episode DB iteration
+    // User data: in lightweight mode, skip entirely (None).
     let user_data = if lightweight {
-        UserItemDataDto::default()
+        None
     } else {
         let mut ud = get_user_data(state, user_id, &show.id).await;
 
@@ -721,7 +721,7 @@ async fn make_jfitem_show(
                 }
             }
         }
-        ud
+        Some(ud)
     };
 
     #[rustfmt::skip]
@@ -754,7 +754,7 @@ async fn make_jfitem_show(
         taglines:                    show.metadata.taglines.clone(),
         child_count:                 Some(child_count),
         recursive_item_count:        Some(recursive_item_count),
-        user_data:                   Some(user_data),
+        user_data,
         ..Default::default()
     };
     Ok(item)

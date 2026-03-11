@@ -16,6 +16,7 @@ pub fn build_movies(collection: &mut Collection, _scan_interval: Duration) {
 
     // Walk the directory looking for movie folders
     for entry in WalkDir::new(&collection.directory)
+        .follow_links(true)
         .max_depth(2)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -43,6 +44,7 @@ pub fn build_shows(collection: &mut Collection, _scan_interval: Duration) {
 
     // Walk the directory looking for show folders
     for entry in WalkDir::new(&collection.directory)
+        .follow_links(true)
         .max_depth(1)
         .into_iter()
         .filter_map(|e| e.ok())
@@ -103,7 +105,7 @@ fn scan_movie_directory(path: &Path, collection_root: &str) -> Option<Movie> {
                 Metadata::default()
             }
         },
-        srt_subs: Vec::new(),          // TODO: Find subtitles
+        srt_subs: Vec::new(), // TODO: Find subtitles
         vtt_subs: Vec::new(),
     };
 
@@ -219,28 +221,39 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
                     double: is_double,
                     base_name: file_name.to_string(),
                     created: chrono::Utc::now(),
-                    file_name: format!("{}/{}", path.file_name().unwrap_or_default().to_str().unwrap_or_default(), file_name),
+                    file_name: format!(
+                        "{}/{}",
+                        path.file_name().unwrap_or_default().to_str().unwrap_or_default(),
+                        file_name
+                    ),
                     file_size: std::fs::metadata(file_path).ok()?.len() as i64,
                     thumb: {
-                        let video_stem = std::path::Path::new(file_name).file_stem().and_then(|s| s.to_str()).unwrap_or(file_name);
+                        let video_stem = std::path::Path::new(file_name)
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or(file_name);
                         let mut thumb = find_image(path, &format!("{}-thumb", video_stem));
                         if thumb.is_empty() {
                             thumb = find_image(path, video_stem);
                         }
                         if !thumb.is_empty() {
-                             format!("{}/{}", path.file_name().unwrap_or_default().to_str().unwrap_or_default(), thumb)
+                            format!(
+                                "{}/{}",
+                                path.file_name().unwrap_or_default().to_str().unwrap_or_default(),
+                                thumb
+                            )
                         } else {
-                             String::new()
+                            String::new()
                         }
                     },
                     metadata: {
-                         // Find NFO for episode (basename.nfo)
-                         let nfo_path = file_path.with_extension("nfo");
-                         if nfo_path.exists() {
-                              super::nfo::parse_episode_nfo(&nfo_path).unwrap_or_default()
-                         } else {
-                              Metadata::default()
-                         }
+                        // Find NFO for episode (basename.nfo)
+                        let nfo_path = file_path.with_extension("nfo");
+                        if nfo_path.exists() {
+                            super::nfo::parse_episode_nfo(&nfo_path).unwrap_or_default()
+                        } else {
+                            Metadata::default()
+                        }
                     },
                     srt_subs: Vec::new(),
                     vtt_subs: Vec::new(),

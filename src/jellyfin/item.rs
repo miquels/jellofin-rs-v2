@@ -912,18 +912,15 @@ pub(super) fn apply_item_pagination(
 // ---------------------------------------------------------------------------
 
 /// Strips optional fields from items that were not requested via the `fields` query parameter.
-/// This matches the real Jellyfin API behavior where the `Fields` parameter controls
-/// which additional fields are included in the response.
+/// Strip non-base fields from items, matching real Jellyfin behavior.
+/// Always runs — optional fields are only included when explicitly requested
+/// via the `fields` query parameter. Empty arrays are kept (not omitted) for
+/// client compatibility.
 fn apply_fields_filter(items: &mut Vec<BaseItemDto>, query_params: &HashMap<String, String>) {
-    let fields_str = match query_params.get("fields") {
-        Some(f) => f,
-        None => return, // No Fields parameter = return everything (backwards compat)
-    };
-
-    let fields: HashSet<&str> = fields_str
-        .split(',')
-        .map(|s| s.trim())
-        .collect();
+    let fields: HashSet<&str> = query_params
+        .get("fields")
+        .map(|f| f.split(',').map(|s| s.trim()).collect())
+        .unwrap_or_default();
 
     for item in items.iter_mut() {
         if !fields.contains("Overview") {
@@ -1004,6 +1001,19 @@ fn apply_fields_filter(items: &mut Vec<BaseItemDto>, query_params: &HashMap<Stri
         if !fields.contains("EnableMediaSourceDisplay") {
             item.enable_media_source_display = None;
         }
+        // Additional non-base fields
+        if !fields.contains("PremiereDate") {
+            item.premiere_date = None;
+        }
+        if !fields.contains("Width") {
+            item.width = None;
+        }
+        if !fields.contains("Height") {
+            item.height = None;
+        }
+        item.locked_fields.clear();
+        item.critic_rating = None;
+        item.lock_data = None;
     }
 }
 
