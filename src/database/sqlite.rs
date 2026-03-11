@@ -624,7 +624,7 @@ impl UserDataRepo for SqliteRepository {
         Ok(favorites)
     }
 
-    async fn get_recently_watched(&self, user_id: &str, include_fully_watched: bool) -> Result<Vec<String>> {
+    async fn get_recently_watched(&self, user_id: &str, include_fully_watched: bool, count: usize) -> Result<Vec<String>> {
         let cache = self.user_data_cache.lock().await;
         let mut items: Vec<_> = cache
             .iter()
@@ -633,7 +633,7 @@ impl UserDataRepo for SqliteRepository {
 
         items.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
 
-        Ok(items.iter().take(10).map(|((_, item_id), _)| item_id.clone()).collect())
+        Ok(items.iter().take(count).map(|((_, item_id), _)| item_id.clone()).collect())
     }
 
     async fn update_user_data(&self, user_id: &str, item_id: &str, details: &UserData) -> Result<()> {

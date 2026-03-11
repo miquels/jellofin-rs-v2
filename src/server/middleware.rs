@@ -1,4 +1,5 @@
 use axum::{extract::{Request, State}, middleware::Next, response::Response};
+use std::net::IpAddr;
 use tracing::info;
 use crate::server::AppState;
 
@@ -303,6 +304,86 @@ pub async fn etag_validation_middleware(req: Request, next: Next) -> Response {
     }
 
     response
+}
+
+/// Middleware: reject requests whose source IP is not in `state.config.ip_allowlist`.
+/// No-op when the allowlist is empty.
+pub async fn ip_acl_middleware(
+    State(state): State<AppState>,
+    req: Request,
+    next: Next,
+) -> Response {
+    let allowlist = state.config.ip_allowlist();
+    if allowlist.is_empty() {
+        return next.run(req).await;
+    }
+
+    let client_ip = extract_client_ip(&req);
+
+    let allowed = client_ip
+        .map(|ip| allowlist.iter().any(|entry| ip_matches(ip, entry)))
+        .unwrap_or(false);
+
+    if !allowed {
+        info!(ip = ?client_ip, "IP ACL: request denied");
+        let mut resp = Response::new(axum::body::Body::empty());
+        *resp.status_mut() = axum::http::StatusCode::FORBIDDEN;
+        return resp;
+    }
+
+    next.run(req).await
+}
+
+/// Extract client IP from X-Real-IP, X-Forwarded-For, or nothing.
+fn extract_client_ip(req: &Request) -> Option<IpAddr> {
+    let headers = req.headers();
+
+    // X-Real-IP (set by nginx)
+    if let Some(v) = headers.get("x-real-ip").and_then(|v| v.to_str().ok()) {
+        if let Ok(ip) = v.trim().parse::<IpAddr>() {
+            return Some(ip);
+        }
+    }
+
+    // X-Forwarded-For: take the first (leftmost) address
+    if let Some(v) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+        if let Some(first) = v.split(',').next() {
+            if let Ok(ip) = first.trim().parse::<IpAddr>() {
+                return Some(ip);
+            }
+        }
+    }
+
+    None
+}
+
+/// Check whether `ip` is covered by an allowlist entry (exact IP or CIDR).
+fn ip_matches(ip: IpAddr, entry: &str) -> bool {
+    if let Some((addr_str, prefix_str)) = entry.split_once('/') {
+        // CIDR notation
+        let prefix_len: u8 = match prefix_str.parse() {
+            Ok(p) => p,
+            Err(_) => return false,
+        };
+        match (ip, addr_str.trim().parse::<IpAddr>()) {
+            (IpAddr::V4(client), Ok(IpAddr::V4(net))) => {
+                if prefix_len > 32 { return false; }
+                let mask = if prefix_len == 0 { 0u32 } else { u32::MAX << (32 - prefix_len) };
+                (u32::from(client) & mask) == (u32::from(net) & mask)
+            }
+            (IpAddr::V6(client), Ok(IpAddr::V6(net))) => {
+                if prefix_len > 128 { return false; }
+                let c = u128::from(client);
+                let n = u128::from(net);
+                let mask = if prefix_len == 0 { 0u128 } else { u128::MAX << (128 - prefix_len) };
+                (c & mask) == (n & mask)
+            }
+            _ => false,
+        }
+    } else {
+        // Exact match
+        entry.trim().parse::<IpAddr>().ok() == Some(ip)
+    }
 }
 
 fn etags_match(client_etag: &str, server_etag: &str) -> bool {

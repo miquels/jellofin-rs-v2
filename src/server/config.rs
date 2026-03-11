@@ -42,6 +42,10 @@ impl Config {
     pub fn quick_connect(&self) -> Option<bool> {
         Some(self.jellyfin.quick_connect)
     }
+
+    pub fn ip_allowlist(&self) -> &[String] {
+        &self.jellyfin.ip_allowlist
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,6 +87,9 @@ pub struct JellyfinConfig {
     pub image_quality_poster: u32,
     #[serde(default, rename = "quickconnect")]
     pub quick_connect: bool,
+    /// Optional IP allowlist (CIDR or exact IPs). Empty = allow all.
+    #[serde(default, rename = "ipallowlist")]
+    pub ip_allowlist: Vec<String>,
 }
 
 fn default_address() -> String {

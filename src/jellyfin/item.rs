@@ -276,7 +276,11 @@ pub async fn items_resume(
 ) -> Result<Json<UsersItemsResumeResponse>, StatusCode> {
     let resume_ids = state
         .repo
-        .get_recently_watched(&token.user_id, false)
+        .get_recently_watched(
+            &token.user_id,
+            false,
+            query_params.get("limit").and_then(|v| v.parse().ok()).unwrap_or(20),
+        )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

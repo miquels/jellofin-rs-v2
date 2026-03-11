@@ -1,7 +1,8 @@
 use super::jellyfin::JellyfinState;
 use super::jfitem2::*;
 use super::types::*;
-use crate::database::model;
+use crate::database::{model, ImageMetadata};
+use crate::identicon::generate_identicon;
 use crate::idhash::id_hash;
 use axum::{
     extract::{Path as AxumPath, Query, State},
@@ -193,7 +194,20 @@ pub async fn users_new(
     };
 
     match state.repo.upsert_user(&user).await {
-        Ok(_) => Json(make_user_full(&state, &user).await).into_response(),
+        Ok(_) => {
+            // Auto-generate identicon avatar
+            let png = generate_identicon(&user.id);
+            if !png.is_empty() {
+                let meta = ImageMetadata {
+                    mime_type: "image/png".to_string(),
+                    file_size: png.len() as i64,
+                    etag: crate::idhash::hash_bytes(&png),
+                    updated: chrono::Utc::now(),
+                };
+                let _ = state.repo.store_image(&user.id, "Primary", &meta, &png).await;
+            }
+            Json(make_user_full(&state, &user).await).into_response()
+        }
         Err(e) => {
             error!("Failed to create user '{}': {}", body.name, e);
             StatusCode::INTERNAL_SERVER_ERROR.into_response()

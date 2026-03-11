@@ -88,7 +88,7 @@ pub async fn shows_next_up(
 ) -> Json<QueryResult<BaseItemDto>> {
     let watched_episodes = state
         .repo
-        .get_recently_watched(&token.user_id, true)
+        .get_recently_watched(&token.user_id, true, 500)
         .await
         .unwrap_or_default();
     let next_up_ids = state.collections.next_up(&watched_episodes);

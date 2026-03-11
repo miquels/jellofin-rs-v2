@@ -349,6 +349,7 @@ fn build_router(state: AppState) -> Router {
         .merge(jellyfin_images_public)
         .merge(jellyfin_api)
         // Apply global middleware
+        .layer(mw::from_fn_with_state(state.clone(), middleware::ip_acl_middleware))
         .layer(mw::from_fn(middleware::normalize_path_middleware))
         .layer(mw::from_fn(middleware::add_cors_headers_middleware))
         .layer(mw::from_fn(middleware::etag_validation_middleware))

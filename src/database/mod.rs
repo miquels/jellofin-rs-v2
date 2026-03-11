@@ -84,8 +84,8 @@ pub trait UserDataRepo {
     async fn get_user_data(&self, user_id: &str, item_id: &str) -> Result<UserData>;
     /// Get all favorite items of a user.
     async fn get_favorites(&self, user_id: &str) -> Result<Vec<String>>;
-    /// GetRecentlyWatched returns up to 10 most recently watched items that have not been fully watched.
-    async fn get_recently_watched(&self, user_id: &str, include_fully_watched: bool) -> Result<Vec<String>>;
+    /// GetRecentlyWatched returns up to `count` most recently watched items.
+    async fn get_recently_watched(&self, user_id: &str, include_fully_watched: bool, count: usize) -> Result<Vec<String>>;
     /// Update stores the play state details for a user and item.
     async fn update_user_data(&self, user_id: &str, item_id: &str, details: &UserData) -> Result<()>;
 }
