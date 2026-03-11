@@ -1130,3 +1130,66 @@ pub struct Country {
     pub two_letter_iso_region_name: String,
     pub three_letter_iso_region_name: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct GetUtcTimeResponse {
+    pub request_reception_time: String,
+    pub response_transmission_time: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct SystemEndpointResponse {
+    pub is_local: bool,
+    pub is_in_network: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ScheduledTaskLastExecutionResult {
+    pub start_time_utc: String,
+    pub end_time_utc: String,
+    pub status: String,
+    pub key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ScheduledTaskTrigger {
+    #[serde(rename = "Type")]
+    pub trigger_type: String,
+    pub interval_ticks: Option<i64>,
+    pub time_of_day_ticks: Option<i64>,
+    pub day_of_week: Option<String>,
+    pub max_runtime_ticks: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ScheduledTaskInfo {
+    pub id: String,
+    pub name: String,
+    pub state: String,
+    pub category: String,
+    pub description: String,
+    pub triggers: Vec<ScheduledTaskTrigger>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_execution_result: Option<ScheduledTaskLastExecutionResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ItemThemeMediaResponse {
+    pub theme_videos_result: UserItemsResponse,
+    pub theme_songs_result: UserItemsResponse,
+    pub soundtrack_songs_result: UserItemsResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ItemRemoteImagesResponse {
+    pub images: Vec<serde_json::Value>,
+    pub total_record_count: i32,
+    pub providers: Vec<String>,
+}

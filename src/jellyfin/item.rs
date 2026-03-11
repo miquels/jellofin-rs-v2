@@ -1062,3 +1062,66 @@ fn parse_iso8601_date(input: &str) -> Option<DateTime<Utc>> {
     }
     None
 }
+
+/// GET /Items/Root - Get root folder item
+pub async fn items_root(
+    Extension(token): Extension<model::AccessToken>,
+    State(state): State<JellyfinState>,
+) -> Result<Json<BaseItemDto>, StatusCode> {
+    let item = make_jfitem_root(&state, &token.user_id)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(item))
+}
+
+/// GET /Items/{item}/Intros - Get item intros (not implemented)
+pub async fn items_intros() -> Json<UserItemsResponse> {
+    Json(UserItemsResponse {
+        items: Vec::new(),
+        total_record_count: 0,
+        start_index: 0,
+    })
+}
+
+/// GET /Items/{item}/LocalTrailers - Get local trailers (not implemented)
+pub async fn items_local_trailers() -> Json<Vec<BaseItemDto>> {
+    Json(Vec::new())
+}
+
+/// GET /Items/{item}/ThemeMedia - Get theme media (not implemented)
+pub async fn items_theme_media() -> Json<ItemThemeMediaResponse> {
+    let empty = UserItemsResponse {
+        items: Vec::new(),
+        total_record_count: 0,
+        start_index: 0,
+    };
+    Json(ItemThemeMediaResponse {
+        theme_videos_result: empty.clone(),
+        theme_songs_result: empty.clone(),
+        soundtrack_songs_result: empty,
+    })
+}
+
+/// POST /Items/{item}/Refresh - Queue item refresh (not implemented)
+pub async fn items_refresh() -> StatusCode {
+    StatusCode::NO_CONTENT
+}
+
+/// GET /Items/{item}/RemoteImages - Get remote images (not implemented)
+pub async fn items_remote_images() -> Json<ItemRemoteImagesResponse> {
+    Json(ItemRemoteImagesResponse {
+        images: Vec::new(),
+        total_record_count: 0,
+        providers: Vec::new(),
+    })
+}
+
+/// GET /SyncPlay/List - List SyncPlay groups (stub)
+pub async fn sync_play_list() -> Json<Vec<serde_json::Value>> {
+    Json(Vec::new())
+}
+
+/// POST /SyncPlay/New - Create SyncPlay group (not implemented)
+pub async fn sync_play_new() -> StatusCode {
+    StatusCode::UNAUTHORIZED
+}

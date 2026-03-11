@@ -38,6 +38,10 @@ impl Config {
     pub fn auto_register(&self) -> Option<bool> {
         Some(self.jellyfin.auto_register)
     }
+
+    pub fn quick_connect(&self) -> Option<bool> {
+        Some(self.jellyfin.quick_connect)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +81,8 @@ pub struct JellyfinConfig {
     pub auto_register: bool,
     #[serde(default = "default_image_quality", rename = "imagequalityposter")]
     pub image_quality_poster: u32,
+    #[serde(default, rename = "quickconnect")]
+    pub quick_connect: bool,
 }
 
 fn default_address() -> String {

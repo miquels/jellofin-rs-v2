@@ -1,7 +1,7 @@
 pub mod model;
 pub mod sqlite;
 
-pub use model::{AccessToken, DatabaseError, Item, Playlist, Result, User, UserData};
+pub use model::{AccessToken, DatabaseError, ImageMetadata, Item, Playlist, QuickConnectCode, Result, User, UserData, UserProperties};
 pub use sqlite::SqliteRepository;
 
 use async_trait::async_trait;
@@ -16,7 +16,7 @@ pub trait PersonRepo {
 /// Database repo aggregates the repo interfaces.
 #[async_trait]
 pub trait Repository:
-    UserRepo + AccessTokenRepo + ItemRepo + UserDataRepo + PlaylistRepo + PersonRepo + Send + Sync
+    UserRepo + AccessTokenRepo + ItemRepo + UserDataRepo + PlaylistRepo + PersonRepo + QuickConnectRepo + ImageRepo + Send + Sync
 {
     /// Start background jobs for the repository.
     fn start_background_jobs(&self);
@@ -29,8 +29,12 @@ pub trait UserRepo {
     async fn get_user(&self, username: &str) -> Result<User>;
     /// GetByID retrieves a user from the database by ID.
     async fn get_user_by_id(&self, user_id: &str) -> Result<User>;
+    /// GetAllUsers retrieves all users.
+    async fn get_all_users(&self) -> Result<Vec<User>>;
     /// UpsertUser upserts a user into the database.
     async fn upsert_user(&self, user: &User) -> Result<()>;
+    /// DeleteUser deletes a user from the database.
+    async fn delete_user(&self, user_id: &str) -> Result<()>;
 }
 
 /// AccessTokenRepo defines access token operations
@@ -40,10 +44,30 @@ pub trait AccessTokenRepo {
     async fn get_access_token(&self, token: &str) -> Result<AccessToken>;
     /// Get all access tokens for a user.
     async fn get_access_tokens(&self, user_id: &str) -> Result<Vec<AccessToken>>;
+    /// Get access token by device ID.
+    async fn get_access_token_by_device_id(&self, device_id: &str) -> Result<AccessToken>;
     /// UpsertAccessToken upserts an access token.
     async fn upsert_access_token(&self, token: &AccessToken) -> Result<()>;
     /// DeleteAccessToken deletes an access token.
     async fn delete_access_token(&self, token: &str) -> Result<()>;
+}
+
+/// QuickConnectRepo defines quick connect code operations
+#[async_trait]
+pub trait QuickConnectRepo {
+    async fn get_quick_connect_by_secret(&self, secret: &str) -> Result<QuickConnectCode>;
+    async fn get_quick_connect_by_code(&self, code: &str) -> Result<QuickConnectCode>;
+    async fn upsert_quick_connect(&self, qc: &QuickConnectCode) -> Result<()>;
+    async fn delete_expired_quick_connects(&self, before: chrono::DateTime<chrono::Utc>) -> Result<()>;
+}
+
+/// ImageRepo defines image storage operations
+#[async_trait]
+pub trait ImageRepo {
+    async fn has_image(&self, item_id: &str, image_type: &str) -> Result<Option<ImageMetadata>>;
+    async fn get_image(&self, item_id: &str, image_type: &str) -> Result<(ImageMetadata, Vec<u8>)>;
+    async fn store_image(&self, item_id: &str, image_type: &str, meta: &ImageMetadata, data: &[u8]) -> Result<()>;
+    async fn delete_image(&self, item_id: &str, image_type: &str) -> Result<()>;
 }
 
 /// ItemRepo defines item operations

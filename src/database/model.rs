@@ -16,6 +16,8 @@ pub struct User {
     pub last_login: DateTime<Utc>,
     /// LastUsed is the last time the user was active.
     pub last_used: DateTime<Utc>,
+    /// Properties holds user permissions and preferences.
+    pub properties: UserProperties,
 }
 
 /// AccessToken represents an access token for a user.
@@ -72,6 +74,38 @@ pub struct UserData {
     pub timestamp: DateTime<Utc>,
 }
 
+/// UserProperties holds permissions and preferences for a user.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserProperties {
+    pub admin: bool,
+    pub disabled: bool,
+    pub is_hidden: bool,
+    pub enable_downloads: bool,
+    pub enable_all_folders: bool,
+    pub enabled_folders: Vec<String>,
+    pub ordered_views: Vec<String>,
+    pub my_media_excludes: Vec<String>,
+    pub allow_tags: Vec<String>,
+    pub block_tags: Vec<String>,
+}
+
+impl Default for UserProperties {
+    fn default() -> Self {
+        Self {
+            admin: false,
+            disabled: false,
+            is_hidden: true,
+            enable_downloads: true,
+            enable_all_folders: true,
+            enabled_folders: Vec::new(),
+            ordered_views: Vec::new(),
+            my_media_excludes: Vec::new(),
+            allow_tags: Vec::new(),
+            block_tags: Vec::new(),
+        }
+    }
+}
+
 /// Playlist represents a user playlist with item IDs.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Playlist {
@@ -83,6 +117,10 @@ pub struct Playlist {
     pub name: String,
     /// ItemIDs is a list of item IDs contained in the playlist.
     pub item_ids: Vec<String>,
+    /// Created is when the playlist was created.
+    pub created: DateTime<Utc>,
+    /// LastUpdated is when the playlist was last modified.
+    pub last_updated: DateTime<Utc>,
 }
 
 /// Database errors
@@ -114,6 +152,26 @@ pub struct Person {
     pub bio: String,
     pub created: DateTime<Utc>,
     pub last_updated: DateTime<Utc>,
+}
+
+/// QuickConnectCode represents a quick connect session code.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct QuickConnectCode {
+    pub user_id: String,
+    pub device_id: String,
+    pub secret: String,
+    pub authorized: bool,
+    pub code: String,
+    pub created: DateTime<Utc>,
+}
+
+/// ImageMetadata holds metadata about a stored image.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageMetadata {
+    pub mime_type: String,
+    pub file_size: i64,
+    pub etag: String,
+    pub updated: DateTime<Utc>,
 }
 
 pub type Result<T> = std::result::Result<T, DatabaseError>;

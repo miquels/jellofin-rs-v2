@@ -66,11 +66,14 @@ pub async fn create_playlist(
             .into_response();
     }
 
+    let now = chrono::Utc::now();
     let new_playlist = Playlist {
         id: String::new(), // Repo will generate
         user_id: user_id.clone(),
         name: name.clone(),
         item_ids: ids,
+        created: now,
+        last_updated: now,
     };
 
     match state.repo.create_playlist(&new_playlist).await {

@@ -1,5 +1,12 @@
 use sha2::{Digest, Sha256};
 
+/// Hash bytes with SHA256 and return hex string (for ETags).
+pub fn hash_bytes(data: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    hex::encode(hasher.finalize())
+}
+
 /// Hash a string with sha256.
 /// Then take the first 119 bits, and convert that to base62.
 /// Returns a 20-character long string.

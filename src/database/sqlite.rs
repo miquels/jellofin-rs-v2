@@ -5,8 +5,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-use super::model::{AccessToken, DatabaseError, Item, Person, Playlist, Result, User, UserData};
-use super::{AccessTokenRepo, ItemRepo, PersonRepo, PlaylistRepo, Repository, UserDataRepo, UserRepo};
+use super::model::{AccessToken, DatabaseError, ImageMetadata, Item, Person, Playlist, QuickConnectCode, Result, User, UserData, UserProperties};
+use super::{AccessTokenRepo, ImageRepo, ItemRepo, PersonRepo, PlaylistRepo, QuickConnectRepo, Repository, UserDataRepo, UserRepo};
 
 /// SQLite database repository implementation
 pub struct SqliteRepository {
@@ -33,6 +33,14 @@ impl SqliteRepository {
         // Initialize schema
         Self::init_schema(&pool).await?;
 
+        // Migrate: add timestamp columns to playlists if missing
+        let _ = sqlx::query("ALTER TABLE playlists ADD COLUMN created TEXT NOT NULL DEFAULT (datetime('now'))")
+            .execute(&pool)
+            .await;
+        let _ = sqlx::query("ALTER TABLE playlists ADD COLUMN last_updated TEXT NOT NULL DEFAULT (datetime('now'))")
+            .execute(&pool)
+            .await;
+
         let repo = Self {
             pool,
             access_token_cache: Arc::new(Mutex::new(HashMap::new())),
@@ -47,6 +55,9 @@ impl SqliteRepository {
 
     /// Initialize database schema
     async fn init_schema(pool: &SqlitePool) -> Result<()> {
+        sqlx::query("PRAGMA journal_mode = WAL").execute(pool).await?;
+        sqlx::query("PRAGMA foreign_keys = ON").execute(pool).await?;
+
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS users (
@@ -124,6 +135,8 @@ impl SqliteRepository {
                 user_id TEXT NOT NULL,
                 name TEXT NOT NULL,
                 item_ids TEXT NOT NULL,
+                created TEXT NOT NULL DEFAULT (datetime('now')),
+                last_updated TEXT NOT NULL DEFAULT (datetime('now')),
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
             "#,
@@ -142,6 +155,53 @@ impl SqliteRepository {
                 bio TEXT NOT NULL DEFAULT '',
                 created INTEGER NOT NULL,
                 last_updated INTEGER NOT NULL
+            )
+            "#,
+        )
+        .execute(pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS user_properties (
+                userid TEXT NOT NULL,
+                key TEXT NOT NULL,
+                value TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (userid, key),
+                FOREIGN KEY (userid) REFERENCES users(id) ON DELETE CASCADE
+            )
+            "#,
+        )
+        .execute(pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS quickconnect (
+                userid TEXT NOT NULL DEFAULT '',
+                deviceid TEXT NOT NULL,
+                secret TEXT NOT NULL,
+                authorized INTEGER NOT NULL DEFAULT 0,
+                code TEXT NOT NULL,
+                created INTEGER NOT NULL,
+                PRIMARY KEY (deviceid, secret)
+            )
+            "#,
+        )
+        .execute(pool)
+        .await?;
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS images (
+                itemid TEXT NOT NULL,
+                type TEXT NOT NULL,
+                mimetype TEXT NOT NULL,
+                etag TEXT NOT NULL,
+                updated INTEGER NOT NULL,
+                filesize INTEGER NOT NULL,
+                data BLOB NOT NULL,
+                PRIMARY KEY (itemid, type)
             )
             "#,
         )
@@ -230,6 +290,73 @@ impl Repository for SqliteRepository {
     }
 }
 
+impl SqliteRepository {
+    /// Load user properties from the user_properties key-value table.
+    async fn load_user_properties(&self, user_id: &str) -> Result<UserProperties> {
+        let rows = sqlx::query_as::<_, (String, String)>(
+            "SELECT key, value FROM user_properties WHERE userid = ?",
+        )
+        .bind(user_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut props = UserProperties::default();
+        for (key, value) in rows {
+            match key.as_str() {
+                "admin" => props.admin = value == "1",
+                "disabled" => props.disabled = value == "1",
+                "is_hidden" => props.is_hidden = value == "1",
+                "enable_downloads" => props.enable_downloads = value == "1",
+                "enable_all_folders" => props.enable_all_folders = value == "1",
+                "enabled_folders" => props.enabled_folders = split_comma(&value),
+                "ordered_views" => props.ordered_views = split_comma(&value),
+                "my_media_excludes" => props.my_media_excludes = split_comma(&value),
+                "allow_tags" => props.allow_tags = split_comma(&value),
+                "block_tags" => props.block_tags = split_comma(&value),
+                _ => {}
+            }
+        }
+        Ok(props)
+    }
+
+    /// Save user properties to the user_properties key-value table.
+    async fn save_user_properties(&self, user_id: &str, props: &UserProperties) -> Result<()> {
+        let kvs: &[(&str, String)] = &[
+            ("admin", bool_to_string(props.admin)),
+            ("disabled", bool_to_string(props.disabled)),
+            ("is_hidden", bool_to_string(props.is_hidden)),
+            ("enable_downloads", bool_to_string(props.enable_downloads)),
+            ("enable_all_folders", bool_to_string(props.enable_all_folders)),
+            ("enabled_folders", props.enabled_folders.join(",")),
+            ("ordered_views", props.ordered_views.join(",")),
+            ("my_media_excludes", props.my_media_excludes.join(",")),
+            ("allow_tags", props.allow_tags.join(",")),
+            ("block_tags", props.block_tags.join(",")),
+        ];
+        for (key, value) in kvs {
+            sqlx::query("INSERT OR REPLACE INTO user_properties (userid, key, value) VALUES (?, ?, ?)")
+                .bind(user_id)
+                .bind(key)
+                .bind(value)
+                .execute(&self.pool)
+                .await?;
+        }
+        Ok(())
+    }
+}
+
+fn split_comma(s: &str) -> Vec<String> {
+    if s.is_empty() {
+        Vec::new()
+    } else {
+        s.split(',').map(|p| p.to_string()).collect()
+    }
+}
+
+fn bool_to_string(b: bool) -> String {
+    if b { "1" } else { "0" }.to_string()
+}
+
 #[async_trait]
 impl UserRepo for SqliteRepository {
     async fn get_user(&self, username: &str) -> Result<User> {
@@ -241,6 +368,7 @@ impl UserRepo for SqliteRepository {
         .await?
         .ok_or(DatabaseError::NotFound)?;
 
+        let props = self.load_user_properties(&row.0).await?;
         Ok(User {
             id: row.0,
             username: row.1,
@@ -248,6 +376,7 @@ impl UserRepo for SqliteRepository {
             created: chrono::DateTime::from_timestamp(row.3, 0).unwrap_or_default(),
             last_login: chrono::DateTime::from_timestamp(row.4, 0).unwrap_or_default(),
             last_used: chrono::DateTime::from_timestamp(row.5, 0).unwrap_or_default(),
+            properties: props,
         })
     }
 
@@ -260,6 +389,7 @@ impl UserRepo for SqliteRepository {
         .await?
         .ok_or(DatabaseError::NotFound)?;
 
+        let props = self.load_user_properties(&row.0).await?;
         Ok(User {
             id: row.0,
             username: row.1,
@@ -267,7 +397,31 @@ impl UserRepo for SqliteRepository {
             created: chrono::DateTime::from_timestamp(row.3, 0).unwrap_or_default(),
             last_login: chrono::DateTime::from_timestamp(row.4, 0).unwrap_or_default(),
             last_used: chrono::DateTime::from_timestamp(row.5, 0).unwrap_or_default(),
+            properties: props,
         })
+    }
+
+    async fn get_all_users(&self) -> Result<Vec<User>> {
+        let rows = sqlx::query_as::<_, (String, String, String, i64, i64, i64)>(
+            "SELECT id, username, password, created, last_login, last_used FROM users",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut users = Vec::new();
+        for row in rows {
+            let props = self.load_user_properties(&row.0).await?;
+            users.push(User {
+                id: row.0,
+                username: row.1,
+                password: row.2,
+                created: chrono::DateTime::from_timestamp(row.3, 0).unwrap_or_default(),
+                last_login: chrono::DateTime::from_timestamp(row.4, 0).unwrap_or_default(),
+                last_used: chrono::DateTime::from_timestamp(row.5, 0).unwrap_or_default(),
+                properties: props,
+            });
+        }
+        Ok(users)
     }
 
     async fn upsert_user(&self, user: &User) -> Result<()> {
@@ -281,6 +435,16 @@ impl UserRepo for SqliteRepository {
             .execute(&self.pool)
             .await?;
 
+        self.save_user_properties(&user.id, &user.properties).await?;
+        Ok(())
+    }
+
+    async fn delete_user(&self, user_id: &str) -> Result<()> {
+        // Cascade delete will remove user_properties automatically
+        sqlx::query("DELETE FROM users WHERE id = ?")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }
@@ -321,6 +485,28 @@ impl AccessTokenRepo for SqliteRepository {
         cache.insert(token.to_string(), token_data.clone());
 
         Ok(token_data)
+    }
+
+    async fn get_access_token_by_device_id(&self, device_id: &str) -> Result<AccessToken> {
+        let row = sqlx::query_as::<_, (String, String, String, String, String, String, String, i64, i64)>(
+            "SELECT token, user_id, device_id, device_name, application_name, application_version, remote_address, created, last_used FROM access_tokens WHERE device_id = ? LIMIT 1"
+        )
+        .bind(device_id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(DatabaseError::NotFound)?;
+
+        Ok(AccessToken {
+            token: row.0,
+            user_id: row.1,
+            device_id: row.2,
+            device_name: row.3,
+            application_name: row.4,
+            application_version: row.5,
+            remote_address: row.6,
+            created: chrono::DateTime::from_timestamp(row.7, 0).unwrap_or_default(),
+            last_used: chrono::DateTime::from_timestamp(row.8, 0).unwrap_or_default(),
+        })
     }
 
     async fn get_access_tokens(&self, user_id: &str) -> Result<Vec<AccessToken>> {
@@ -462,12 +648,17 @@ impl UserDataRepo for SqliteRepository {
 impl PlaylistRepo for SqliteRepository {
     async fn create_playlist(&self, playlist: &Playlist) -> Result<String> {
         let item_ids_json = serde_json::to_string(&playlist.item_ids)?;
+        let now = chrono::Utc::now().to_rfc3339();
 
-        sqlx::query("INSERT INTO playlists VALUES (?, ?, ?, ?)")
+        sqlx::query(
+            "INSERT OR REPLACE INTO playlists (id, user_id, name, item_ids, created, last_updated) VALUES (?, ?, ?, ?, ?, ?)"
+        )
             .bind(&playlist.id)
             .bind(&playlist.user_id)
             .bind(&playlist.name)
             .bind(&item_ids_json)
+            .bind(&now)
+            .bind(&now)
             .execute(&self.pool)
             .await?;
 
@@ -484,8 +675,8 @@ impl PlaylistRepo for SqliteRepository {
     }
 
     async fn get_playlist(&self, user_id: &str, playlist_id: &str) -> Result<Playlist> {
-        let row = sqlx::query_as::<_, (String, String, String, String)>(
-            "SELECT id, user_id, name, item_ids FROM playlists WHERE id = ? AND user_id = ?",
+        let row = sqlx::query_as::<_, (String, String, String, String, String, String)>(
+            "SELECT id, user_id, name, item_ids, created, last_updated FROM playlists WHERE id = ? AND user_id = ?",
         )
         .bind(playlist_id)
         .bind(user_id)
@@ -494,18 +685,26 @@ impl PlaylistRepo for SqliteRepository {
         .ok_or(DatabaseError::NotFound)?;
 
         let item_ids: Vec<String> = serde_json::from_str(&row.3)?;
+        let created = chrono::DateTime::parse_from_rfc3339(&row.4)
+            .map(|d| d.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| chrono::Utc::now());
+        let last_updated = chrono::DateTime::parse_from_rfc3339(&row.5)
+            .map(|d| d.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| chrono::Utc::now());
 
         Ok(Playlist {
             id: row.0,
             user_id: row.1,
             name: row.2,
             item_ids,
+            created,
+            last_updated,
         })
     }
 
     async fn get_playlist_by_name(&self, user_id: &str, name: &str) -> Result<Playlist> {
-        let row = sqlx::query_as::<_, (String, String, String, String)>(
-            "SELECT id, user_id, name, item_ids FROM playlists WHERE user_id = ? AND name = ?",
+        let row = sqlx::query_as::<_, (String, String, String, String, String, String)>(
+            "SELECT id, user_id, name, item_ids, created, last_updated FROM playlists WHERE user_id = ? AND name = ?",
         )
         .bind(user_id)
         .bind(name)
@@ -514,12 +713,20 @@ impl PlaylistRepo for SqliteRepository {
         .ok_or(DatabaseError::NotFound)?;
 
         let item_ids: Vec<String> = serde_json::from_str(&row.3)?;
+        let created = chrono::DateTime::parse_from_rfc3339(&row.4)
+            .map(|d| d.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| chrono::Utc::now());
+        let last_updated = chrono::DateTime::parse_from_rfc3339(&row.5)
+            .map(|d| d.with_timezone(&chrono::Utc))
+            .unwrap_or_else(|_| chrono::Utc::now());
 
         Ok(Playlist {
             id: row.0,
             user_id: row.1,
             name: row.2,
             item_ids,
+            created,
+            last_updated,
         })
     }
 
@@ -609,5 +816,133 @@ impl PersonRepo for SqliteRepository {
             created: chrono::DateTime::from_timestamp(row.6, 0).unwrap_or_default(),
             last_updated: chrono::DateTime::from_timestamp(row.7, 0).unwrap_or_default(),
         })
+    }
+}
+
+#[async_trait]
+impl QuickConnectRepo for SqliteRepository {
+    async fn get_quick_connect_by_secret(&self, secret: &str) -> Result<QuickConnectCode> {
+        let row = sqlx::query_as::<_, (String, String, String, bool, String, i64)>(
+            "SELECT userid, deviceid, secret, authorized, code, created FROM quickconnect WHERE secret = ?"
+        )
+        .bind(secret)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(DatabaseError::NotFound)?;
+
+        Ok(QuickConnectCode {
+            user_id: row.0,
+            device_id: row.1,
+            secret: row.2,
+            authorized: row.3,
+            code: row.4,
+            created: chrono::DateTime::from_timestamp(row.5, 0).unwrap_or_default(),
+        })
+    }
+
+    async fn get_quick_connect_by_code(&self, code: &str) -> Result<QuickConnectCode> {
+        let row = sqlx::query_as::<_, (String, String, String, bool, String, i64)>(
+            "SELECT userid, deviceid, secret, authorized, code, created FROM quickconnect WHERE code = ?"
+        )
+        .bind(code)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(DatabaseError::NotFound)?;
+
+        Ok(QuickConnectCode {
+            user_id: row.0,
+            device_id: row.1,
+            secret: row.2,
+            authorized: row.3,
+            code: row.4,
+            created: chrono::DateTime::from_timestamp(row.5, 0).unwrap_or_default(),
+        })
+    }
+
+    async fn upsert_quick_connect(&self, qc: &QuickConnectCode) -> Result<()> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO quickconnect (userid, deviceid, secret, authorized, code, created) VALUES (?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&qc.user_id)
+        .bind(&qc.device_id)
+        .bind(&qc.secret)
+        .bind(qc.authorized)
+        .bind(&qc.code)
+        .bind(qc.created.timestamp())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn delete_expired_quick_connects(&self, before: chrono::DateTime<chrono::Utc>) -> Result<()> {
+        sqlx::query("DELETE FROM quickconnect WHERE created < ?")
+            .bind(before.timestamp())
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ImageRepo for SqliteRepository {
+    async fn has_image(&self, item_id: &str, image_type: &str) -> Result<Option<ImageMetadata>> {
+        let row = sqlx::query_as::<_, (String, i64, String, i64)>(
+            "SELECT mimetype, filesize, etag, updated FROM images WHERE itemid = ? AND type = ?"
+        )
+        .bind(item_id)
+        .bind(image_type)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        Ok(row.map(|(mime_type, file_size, etag, updated)| ImageMetadata {
+            mime_type,
+            file_size,
+            etag,
+            updated: chrono::DateTime::from_timestamp(updated, 0).unwrap_or_default(),
+        }))
+    }
+
+    async fn get_image(&self, item_id: &str, image_type: &str) -> Result<(ImageMetadata, Vec<u8>)> {
+        let row = sqlx::query_as::<_, (String, i64, String, i64, Vec<u8>)>(
+            "SELECT mimetype, filesize, etag, updated, data FROM images WHERE itemid = ? AND type = ?"
+        )
+        .bind(item_id)
+        .bind(image_type)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(DatabaseError::NotFound)?;
+
+        let meta = ImageMetadata {
+            mime_type: row.0,
+            file_size: row.1,
+            etag: row.2,
+            updated: chrono::DateTime::from_timestamp(row.3, 0).unwrap_or_default(),
+        };
+        Ok((meta, row.4))
+    }
+
+    async fn store_image(&self, item_id: &str, image_type: &str, meta: &ImageMetadata, data: &[u8]) -> Result<()> {
+        sqlx::query(
+            "INSERT OR REPLACE INTO images (itemid, type, mimetype, etag, updated, filesize, data) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(item_id)
+        .bind(image_type)
+        .bind(&meta.mime_type)
+        .bind(&meta.etag)
+        .bind(meta.updated.timestamp())
+        .bind(meta.file_size)
+        .bind(data)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    async fn delete_image(&self, item_id: &str, image_type: &str) -> Result<()> {
+        sqlx::query("DELETE FROM images WHERE itemid = ? AND type = ?")
+            .bind(item_id)
+            .bind(image_type)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 }
