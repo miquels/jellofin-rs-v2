@@ -33,6 +33,9 @@ pub async fn items_query(
     State(state): State<JellyfinState>,
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
+    // Debug: log all query params the handler receives
+    tracing::info!("items_query params: {:?}", query_params);
+
     let parent_id = query_params.get("parentId").cloned();
     let search_term = query_params.get("searchTerm").cloned();
     let recursive = query_params

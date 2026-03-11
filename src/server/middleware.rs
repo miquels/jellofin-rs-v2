@@ -64,6 +64,8 @@ pub async fn normalize_path_middleware(mut req: Request, next: Next) -> Response
     // Rebuild URI if anything changed
     let original_query = uri.query().map(|q| q.to_string());
     if normalized_path != path || normalized_query != original_query {
+        info!("normalize: ORIGINAL query = {:?}", original_query);
+        info!("normalize: NORMALIZED query = {:?}", normalized_query);
         let mut parts = uri.clone().into_parts();
         parts.path_and_query = Some(
             format!(
