@@ -4,7 +4,7 @@ use axum::{
     Extension,
 };
 use chrono::Utc;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use super::jellyfin::JellyfinState;
 use super::jfitem2::*;
@@ -285,6 +285,14 @@ async fn user_data_update(
     mark_as_watched: bool,
 ) -> anyhow::Result<()> {
     let internal_id = trim_prefix(item_id);
+
+    // Ignore updates with zero position unless explicitly marking as watched.
+    // Clients send position_ticks=0 on abrupt stop, which would erase real progress.
+    if position_ticks == 0 && !mark_as_watched {
+        debug!("userDataUpdate: ignoring zero-position update for itemID: {}", item_id);
+        return Ok(());
+    }
+
     let mut duration = 0;
 
     if let Some((_, item)) = state.collections.get_item_by_id(internal_id) {
