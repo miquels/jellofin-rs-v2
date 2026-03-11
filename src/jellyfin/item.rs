@@ -18,8 +18,11 @@ use crate::database::model;
 pub async fn item_details(
     Extension(token): Extension<model::AccessToken>,
     State(state): State<JellyfinState>,
-    AxumPath(item_id): AxumPath<String>,
+    // Vec because this handler serves both /Items/{item_id} and /Users/{user_id}/Items/{item_id}.
+    // Single-param route: path = [item_id]. Two-param route: path = [user_id, item_id].
+    AxumPath(path): AxumPath<Vec<String>>,
 ) -> Result<Json<BaseItemDto>, StatusCode> {
+    let item_id = path.last().ok_or(StatusCode::BAD_REQUEST)?;
     let response = make_jfitem_by_id(&state, &token.user_id, &item_id)
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
@@ -302,10 +305,13 @@ pub async fn items_resume(
 pub async fn items_similar(
     Extension(token): Extension<model::AccessToken>,
     State(state): State<JellyfinState>,
-    AxumPath(item_id): AxumPath<String>,
+    // Vec because this handler serves both /Items/{item_id}/Similar and /Users/{user_id}/Items/{item_id}/Similar.
+    // Single-param route: path = [item_id]. Two-param route: path = [user_id, item_id].
+    AxumPath(path): AxumPath<Vec<String>>,
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UsersItemsSimilarResponse>, StatusCode> {
-    let internal_id = trim_prefix(&item_id);
+    let item_id = path.last().ok_or(StatusCode::BAD_REQUEST)?;
+    let internal_id = trim_prefix(item_id);
     let (collection, item) = state
         .collections
         .get_item_by_id(internal_id)
