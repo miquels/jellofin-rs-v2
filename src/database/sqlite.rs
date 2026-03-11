@@ -242,51 +242,7 @@ impl SqliteRepository {
 #[async_trait]
 impl Repository for SqliteRepository {
     fn start_background_jobs(&self) {
-        let access_token_cache = Arc::clone(&self.access_token_cache);
-        let user_data_cache = Arc::clone(&self.user_data_cache);
-        let pool = self.pool.clone();
-
-        // Spawn background task for syncing caches
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(10));
-            loop {
-                interval.tick().await;
-
-                // Sync access tokens
-                let tokens = access_token_cache.lock().await;
-                for token in tokens.values() {
-                    let _ = sqlx::query("INSERT OR REPLACE INTO access_tokens VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-                        .bind(&token.token)
-                        .bind(&token.user_id)
-                        .bind(&token.device_id)
-                        .bind(&token.device_name)
-                        .bind(&token.application_name)
-                        .bind(&token.application_version)
-                        .bind(&token.remote_address)
-                        .bind(token.created.timestamp())
-                        .bind(token.last_used.timestamp())
-                        .execute(&pool)
-                        .await;
-                }
-                drop(tokens);
-
-                // Sync user data
-                let user_data = user_data_cache.lock().await;
-                for ((user_id, item_id), data) in user_data.iter() {
-                    let _ = sqlx::query("INSERT OR REPLACE INTO user_data VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-                        .bind(user_id)
-                        .bind(item_id)
-                        .bind(data.position)
-                        .bind(data.played_percentage)
-                        .bind(data.play_count)
-                        .bind(data.played)
-                        .bind(data.favorite)
-                        .bind(data.timestamp.timestamp())
-                        .execute(&pool)
-                        .await;
-                }
-            }
-        });
+        // No-op: all writes are now write-through (DB first, then cache).
     }
 }
 
@@ -637,6 +593,20 @@ impl UserDataRepo for SqliteRepository {
     }
 
     async fn update_user_data(&self, user_id: &str, item_id: &str, details: &UserData) -> Result<()> {
+        // Write-through: persist to DB first
+        sqlx::query("INSERT OR REPLACE INTO user_data VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
+            .bind(user_id)
+            .bind(item_id)
+            .bind(details.position)
+            .bind(details.played_percentage)
+            .bind(details.play_count)
+            .bind(details.played)
+            .bind(details.favorite)
+            .bind(details.timestamp.timestamp())
+            .execute(&self.pool)
+            .await?;
+
+        // Then update cache
         let mut cache = self.user_data_cache.lock().await;
         let key = (user_id.to_string(), item_id.to_string());
         cache.insert(key, details.clone());
