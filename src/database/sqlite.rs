@@ -562,30 +562,23 @@ impl UserDataRepo for SqliteRepository {
         .fetch_optional(&self.pool)
         .await?;
 
-        let data = match row {
-            Some(r) => UserData {
-                position: r.0,
-                played_percentage: r.1,
-                play_count: r.2,
-                played: r.3,
-                favorite: r.4,
-                timestamp: chrono::DateTime::from_timestamp(r.5, 0).unwrap_or_default(),
-            },
-            None => UserData {
-                position: 0,
-                played_percentage: 0,
-                play_count: 0,
-                played: false,
-                favorite: false,
-                timestamp: chrono::Utc::now(),
-            },
-        };
-
-        // Populate cache for future reads
-        let mut cache = self.user_data_cache.lock().await;
-        cache.insert((user_id.to_string(), item_id.to_string()), data.clone());
-
-        Ok(data)
+        match row {
+            Some(r) => {
+                let data = UserData {
+                    position: r.0,
+                    played_percentage: r.1,
+                    play_count: r.2,
+                    played: r.3,
+                    favorite: r.4,
+                    timestamp: chrono::DateTime::from_timestamp(r.5, 0).unwrap_or_default(),
+                };
+                // Only cache entries that actually exist in the DB
+                let mut cache = self.user_data_cache.lock().await;
+                cache.insert((user_id.to_string(), item_id.to_string()), data.clone());
+                Ok(data)
+            }
+            None => Err(DatabaseError::NotFound),
+        }
     }
 
     async fn get_favorites(&self, user_id: &str) -> Result<Vec<String>> {
