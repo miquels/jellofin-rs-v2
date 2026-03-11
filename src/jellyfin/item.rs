@@ -38,10 +38,7 @@ pub async fn items_query(
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
     let parent_id = query_params.get("parentId").cloned();
     let search_term = query_params.get("searchTerm").cloned();
-    let recursive = query_params
-        .get("recursive")
-        .map(|v| v == "true")
-        .unwrap_or(false);
+    let recursive = query_params.get("recursive").map(|v| v == "true").unwrap_or(false);
 
     let mut items = Vec::new();
 
@@ -58,7 +55,8 @@ pub async fn items_query(
     } else {
         // Recursive query across all collections — pre-filter and pre-sort at the
         // collection level to avoid building DTOs for all items when only a few are needed.
-        let result = query_items_presorted(&state, &token.user_id, &query_params).await
+        let result = query_items_presorted(&state, &token.user_id, &query_params)
+            .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
         return Ok(Json(result));
     }
@@ -101,14 +99,10 @@ async fn query_items_presorted(
     use crate::collection::Item;
 
     // Collect type filter
-    let type_filter: Option<Vec<&str>> = query_params
-        .get("includeItemTypes")
-        .map(|t| t.split(',').collect());
+    let type_filter: Option<Vec<&str>> = query_params.get("includeItemTypes").map(|t| t.split(',').collect());
 
     // Genre filter: genreIds are "genre_<hash>" — we need to match by generating IDs from item genres
-    let genre_ids: Option<Vec<&str>> = query_params
-        .get("genreIds")
-        .map(|g| g.split('|').collect());
+    let genre_ids: Option<Vec<&str>> = query_params.get("genreIds").map(|g| g.split('|').collect());
 
     // Gather matching (item_ref, collection_id) pairs from all collections
     let collections = state.collections.get_collections();
@@ -158,9 +152,7 @@ async fn query_items_presorted(
                         ar.partial_cmp(&br).unwrap_or(std::cmp::Ordering::Equal)
                     }
                     "productionyear" => a.production_year().cmp(&b.production_year()),
-                    "name" | "sortname" | "seriessortname" | "default" => {
-                        a.sort_name().cmp(b.sort_name())
-                    }
+                    "name" | "sortname" | "seriessortname" | "default" => a.sort_name().cmp(b.sort_name()),
                     "random" => {
                         let mut rng = rand::thread_rng();
                         if rng.gen_bool(0.5) {
@@ -184,9 +176,7 @@ async fn query_items_presorted(
         .get("startIndex")
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(0);
-    let limit = query_params
-        .get("limit")
-        .and_then(|v| v.parse::<usize>().ok());
+    let limit = query_params.get("limit").and_then(|v| v.parse::<usize>().ok());
 
     let paged: Vec<(&Item, &str)> = matching
         .into_iter()
@@ -808,7 +798,10 @@ pub(super) fn apply_item_filter(i: &BaseItemDto, qp: &HashMap<String, String>) -
 // Sorting
 // ---------------------------------------------------------------------------
 
-pub(super) fn apply_item_sorting(mut items: Vec<BaseItemDto>, query_params: &HashMap<String, String>) -> Vec<BaseItemDto> {
+pub(super) fn apply_item_sorting(
+    mut items: Vec<BaseItemDto>,
+    query_params: &HashMap<String, String>,
+) -> Vec<BaseItemDto> {
     let sort_by_raw = match query_params.get("sortBy") {
         Some(s) if !s.is_empty() => s.clone(),
         _ => return items,
@@ -899,9 +892,7 @@ pub(super) fn apply_item_pagination(
         .get("startIndex")
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(0);
-    let limit = query_params
-        .get("limit")
-        .and_then(|v| v.parse::<usize>().ok());
+    let limit = query_params.get("limit").and_then(|v| v.parse::<usize>().ok());
 
     let total = items.len();
     if start_index >= total {
@@ -1033,7 +1024,7 @@ fn apply_fields_filter(items: &mut Vec<BaseItemDto>, query_params: &HashMap<Stri
 
 /// Parse an ISO 8601 date string into a DateTime<Utc>.
 /// Tries multiple formats: RFC3339, datetime, date-only, year-month, year.
-fn parse_iso8601_date(input: &str) -> Option<DateTime<Utc>> {
+pub fn parse_iso8601_date(input: &str) -> Option<DateTime<Utc>> {
     // Try RFC3339 / full datetime with timezone
     if let Ok(dt) = DateTime::parse_from_rfc3339(input) {
         return Some(dt.with_timezone(&Utc));
@@ -1044,16 +1035,12 @@ fn parse_iso8601_date(input: &str) -> Option<DateTime<Utc>> {
     }
     // Try "2006-01-02"
     if let Ok(nd) = NaiveDate::parse_from_str(input, "%Y-%m-%d") {
-        return nd
-            .and_hms_opt(0, 0, 0)
-            .map(|ndt| ndt.and_utc());
+        return nd.and_hms_opt(0, 0, 0).map(|ndt| ndt.and_utc());
     }
     // Try "2006-01"
     if input.len() == 7 {
         if let Ok(nd) = NaiveDate::parse_from_str(&format!("{}-01", input), "%Y-%m-%d") {
-            return nd
-                .and_hms_opt(0, 0, 0)
-                .map(|ndt| ndt.and_utc());
+            return nd.and_hms_opt(0, 0, 0).map(|ndt| ndt.and_utc());
         }
     }
     // Try "2006" (year only)

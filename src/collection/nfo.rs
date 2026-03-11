@@ -1,10 +1,13 @@
-use quick_xml::de::from_str;
 use serde::Deserialize;
 use std::fs;
 use std::path::Path;
+
+use chrono::Datelike;
+use quick_xml::de::from_str;
 use tracing::warn;
 
 use super::metadata::Metadata;
+use crate::jellyfin::parse_iso8601_date;
 
 /// Parse movie NFO file
 pub fn parse_movie_nfo(path: &Path) -> Option<Metadata> {
@@ -128,11 +131,15 @@ struct AudioDetails {
 
 impl From<MovieNfo> for Metadata {
     fn from(nfo: MovieNfo) -> Self {
+        let premiered = nfo.premiered.as_ref().and_then(|d| parse_iso8601_date(d));
+        let year = premiered.map(|d| d.year()).or(nfo.year);
+
         let mut m = Metadata {
             title: nfo.title,
             plot: nfo.plot,
             rating: nfo.rating,
-            year: nfo.year,
+            year: year,
+            premiered: premiered,
             official_rating: nfo.mpaa,
             genres: nfo.genre,
             studios: nfo.studio,
@@ -150,11 +157,15 @@ impl From<MovieNfo> for Metadata {
 
 impl From<ShowNfo> for Metadata {
     fn from(nfo: ShowNfo) -> Self {
+        let premiered = nfo.premiered.as_ref().and_then(|d| parse_iso8601_date(d));
+        let year = premiered.map(|d| d.year()).or(nfo.year);
+
         Metadata {
             title: nfo.title,
             plot: nfo.plot,
             rating: nfo.rating,
-            year: nfo.year,
+            premiered: premiered,
+            year: year,
             official_rating: nfo.mpaa,
             genres: nfo.genre,
             studios: nfo.studio,
