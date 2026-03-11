@@ -350,6 +350,21 @@ impl AccessTokenRepo for SqliteRepository {
     async fn upsert_access_token(&self, token: &AccessToken) -> Result<()> {
         let mut cache = self.access_token_cache.lock().await;
         cache.insert(token.token.clone(), token.clone());
+        drop(cache);
+
+        sqlx::query("INSERT OR REPLACE INTO access_tokens VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)")
+            .bind(&token.token)
+            .bind(&token.user_id)
+            .bind(&token.device_id)
+            .bind(&token.device_name)
+            .bind(&token.application_name)
+            .bind(&token.application_version)
+            .bind(&token.remote_address)
+            .bind(token.created.timestamp())
+            .bind(token.last_used.timestamp())
+            .execute(&self.pool)
+            .await?;
+
         Ok(())
     }
 

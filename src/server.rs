@@ -16,6 +16,7 @@ use tracing::info;
 
 use crate::collection::CollectionRepo;
 use crate::database::sqlite::SqliteRepository;
+use crate::database::Repository;
 use crate::imageresize::ImageResizer;
 use crate::jellyfin::{JellyfinAuthState, JellyfinState};
 use crate::notflix::NotflixState;
