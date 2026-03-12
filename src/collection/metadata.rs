@@ -9,6 +9,8 @@ pub struct Metadata {
     pub taglines: Vec<String>,
     pub genres: Vec<String>,
     pub studios: Vec<String>,
+    pub actors: Vec<String>,
+    pub directors: Vec<String>,
     pub year: Option<i32>,
     pub rating: Option<f32>,
     pub official_rating: Option<String>,

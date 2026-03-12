@@ -68,6 +68,8 @@ struct MovieNfo {
     mpaa: Option<String>,
     genre: Vec<String>,
     studio: Vec<String>,
+    actor: Vec<NfoActor>,
+    director: Vec<String>,
     premiered: Option<String>,
     fileinfo: Option<FileInfo>,
 }
@@ -83,6 +85,8 @@ struct ShowNfo {
     mpaa: Option<String>,
     genre: Vec<String>,
     studio: Vec<String>,
+    actor: Vec<NfoActor>,
+    director: Vec<String>,
     premiered: Option<String>,
 }
 
@@ -127,6 +131,14 @@ struct AudioDetails {
     channels: Option<i32>,
 }
 
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "lowercase")]
+struct NfoActor {
+    name: String,
+    #[allow(dead_code)]
+    role: Option<String>,
+}
+
 // --- Conversions ---
 
 impl From<MovieNfo> for Metadata {
@@ -143,6 +155,8 @@ impl From<MovieNfo> for Metadata {
             official_rating: nfo.mpaa,
             genres: nfo.genre,
             studios: nfo.studio,
+            actors: nfo.actor.into_iter().map(|a| a.name).collect(),
+            directors: nfo.director,
             taglines: nfo.tagline,
             ..Default::default()
         };
@@ -169,6 +183,8 @@ impl From<ShowNfo> for Metadata {
             official_rating: nfo.mpaa,
             genres: nfo.genre,
             studios: nfo.studio,
+            actors: nfo.actor.into_iter().map(|a| a.name).collect(),
+            directors: nfo.director,
             taglines: nfo.tagline,
             ..Default::default()
         }

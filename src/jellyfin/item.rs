@@ -311,7 +311,8 @@ pub async fn items_similar(
         .get_item_by_id(internal_id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let similar_ids = state.collections.similar(&collection.id, &item.id()).await;
+    let limit = query_params.get("limit").and_then(|v| v.parse::<usize>().ok()).unwrap_or(10);
+    let similar_ids = state.collections.similar(&collection.id, &item.id(), limit).await;
 
     let mut items = Vec::new();
     for id in similar_ids {
@@ -325,11 +326,10 @@ pub async fn items_similar(
     let items = apply_items_filter(items, &query_params);
     let total_count = items.len() as i32;
     let items = apply_item_sorting(items, &query_params);
-    let (paged_items, start_index) = apply_item_pagination(items, &query_params);
 
     Ok(Json(UsersItemsSimilarResponse {
-        items: paged_items,
-        start_index,
+        items: items,
+        start_index: 0,
         total_record_count: total_count,
     }))
 }

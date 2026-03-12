@@ -1,4 +1,5 @@
 use arc_swap::ArcSwap;
+use rand::seq::SliceRandom;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
@@ -277,15 +278,67 @@ impl CollectionRepo {
         next_up_ids
     }
 
-    pub async fn similar(&self, collection_id: &str, item_id: &str) -> Vec<String> {
-        if let Some(_collection) = self.get_collection(collection_id) {
-            if let Some(_item) = self.get_item(collection_id, item_id) {
-                // TODO: Implement similar logic using search index
-                // For now, return empty
-                return Vec::new();
-            }
+    pub async fn similar(&self, collection_id: &str, item_id: &str, limit: usize) -> Vec<String> {
+        let collection = match self.get_collection(collection_id) {
+            Some(c) => c,
+            None => return Vec::new(),
+        };
+        let item = match self.get_item(collection_id, item_id) {
+            Some(i) => i,
+            None => return Vec::new(),
+        };
+
+        let source_meta = match &item {
+            Item::Movie(m) => &m.metadata,
+            Item::Show(s) => &s.metadata,
+            _ => return Vec::new(),
+        };
+
+        let source_genres: HashSet<&str> = source_meta.genres.iter().map(|s| s.as_str()).collect();
+        let source_people: HashSet<&str> = source_meta.actors.iter()
+            .chain(source_meta.directors.iter())
+            .map(|s| s.as_str())
+            .collect();
+
+        if source_genres.is_empty() && source_people.is_empty() {
+            return Vec::new();
         }
-        Vec::new()
+
+        let source_id = item.id();
+        let match_shows = matches!(item, Item::Show(_));
+
+        // Score candidates by genre + people overlap
+        let mut scored: Vec<(String, usize)> = collection
+            .items
+            .iter()
+            .filter_map(|candidate| {
+                let (cid, meta) = match candidate {
+                    Item::Movie(m) if !match_shows => (m.id.as_str(), &m.metadata),
+                    Item::Show(s) if match_shows => (s.id.as_str(), &s.metadata),
+                    _ => return None,
+                };
+                if cid == source_id {
+                    return None;
+                }
+                let genre_score = meta.genres.iter().filter(|g| source_genres.contains(g.as_str())).count();
+                let people_score = meta.actors.iter()
+                    .chain(meta.directors.iter())
+                    .filter(|p| source_people.contains(p.as_str()))
+                    .count();
+                let score = genre_score + people_score;
+                if score > 0 {
+                    Some((cid.to_string(), score))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Sort by score descending, take top 3*limit, shuffle, return limit
+        scored.sort_by(|a, b| b.1.cmp(&a.1));
+        scored.truncate(3 * limit);
+        scored.shuffle(&mut rand::thread_rng());
+        scored.into_iter().take(limit).map(|(id, _)| id).collect()
     }
 
     /// Search performs a item search in collection repository and returns matching items.
