@@ -7,7 +7,7 @@ use chrono::Utc;
 use tracing::{debug, error, info};
 
 use super::jellyfin::JellyfinState;
-use super::jfitem2::*;
+use super::jfitem::*;
 use super::types::*;
 use crate::database::{AccessToken, UserData as DbUserData};
 

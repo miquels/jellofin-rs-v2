@@ -1,5 +1,5 @@
 use super::error::apierror;
-use super::jfitem2::make_jfitem;
+use super::jfitem::make_jfitem;
 use super::jellyfin::JellyfinState;
 use super::types::*;
 use crate::database::model::{AccessToken, Playlist};

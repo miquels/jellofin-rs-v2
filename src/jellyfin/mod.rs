@@ -5,7 +5,6 @@ pub mod error;
 pub mod id;
 pub mod jellyfin;
 pub mod jfitem;
-pub mod jfitem2;
 pub mod movie;
 pub mod playlist;
 pub mod session;

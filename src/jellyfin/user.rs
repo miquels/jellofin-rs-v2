@@ -1,5 +1,5 @@
 use super::jellyfin::JellyfinState;
-use super::jfitem2::*;
+use super::jfitem::*;
 use super::types::*;
 use crate::database::{model, ImageMetadata};
 use crate::identicon::generate_identicon;

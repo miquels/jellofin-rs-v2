@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use super::item::{apply_item_filter, apply_item_pagination, apply_item_sorting};
 use super::jellyfin::JellyfinState;
-use super::jfitem2::*;
+use super::jfitem::*;
 use super::types::*;
 use crate::collection::Item;
 use crate::database::model;

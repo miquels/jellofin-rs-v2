@@ -10,7 +10,7 @@ use std::collections::{HashMap, HashSet};
 use tracing::warn;
 
 use super::jellyfin::JellyfinState;
-use super::jfitem2::*;
+use super::jfitem::*;
 use super::types::*;
 use crate::database::model;
 
@@ -120,7 +120,7 @@ async fn query_items_presorted(
                 let item_genre_ids: Vec<String> = item
                     .genres()
                     .iter()
-                    .map(|g| super::jfitem2::make_jf_genre_id(g))
+                    .map(|g| super::jfitem::make_jf_genre_id(g))
                     .collect();
                 if !gids.iter().any(|gid| item_genre_ids.iter().any(|ig| ig == gid)) {
                     continue;
