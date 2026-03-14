@@ -13,12 +13,11 @@ use tower_http::services::ServeFile;
 use tracing::warn;
 
 use super::jellyfin::JellyfinState;
-use super::jfitem::trim_prefix;
 use crate::collection::item::Item;
 use crate::collection::CollectionRepo;
 use crate::database::model::AccessToken;
 use crate::database::ImageMetadata;
-use crate::idhash::{hash_bytes, id_hash};
+use crate::idhash::*;
 
 #[derive(Debug, Deserialize)]
 pub struct ImageParams {
@@ -96,11 +95,9 @@ async fn get_image_common(
         return Err(StatusCode::NOT_FOUND);
     }
 
-    let internal_id = trim_prefix(&item_id);
-
     // Check DB first
-    if let Ok(Some(meta)) = state.repo.has_image(internal_id, &image_type).await {
-        if let Ok((_, data)) = state.repo.get_image(internal_id, &image_type).await {
+    if let Ok(Some(meta)) = state.repo.has_image(&item_id, &image_type).await {
+        if let Ok((_, data)) = state.repo.get_image(&item_id, &image_type).await {
             return Ok((
                 [
                     (axum::http::header::CONTENT_TYPE, meta.mime_type.clone()),
@@ -112,11 +109,11 @@ async fn get_image_common(
         }
     }
 
-    let image_path = find_image_path(&state.collections, internal_id, &image_type)
+    let image_path = find_image_path(&state.collections, &item_id, &image_type)
         .ok_or_else(|| {
             warn!(
-                "Image not found: item_id={}, internal_id={}, image_type={}",
-                item_id, internal_id, image_type
+                "Image not found: item_id={}, image_type={}",
+                item_id, image_type
             );
             StatusCode::NOT_FOUND
         })?;
@@ -357,7 +354,7 @@ pub async fn get_genre_image(
     State(state): State<JellyfinState>,
     AxumPath((name, image_type)): AxumPath<(String, String)>,
 ) -> Result<Response, StatusCode> {
-    let genre_id = id_hash(&name);
+    let genre_id = id_hash_prefix(ITEM_PREFIX_GENRE, &name);
     get_db_image(&state, &genre_id, &image_type).await
 }
 
@@ -369,7 +366,7 @@ pub async fn post_genre_image(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> StatusCode {
-    let genre_id = id_hash(&name);
+    let genre_id = id_hash_prefix(ITEM_PREFIX_GENRE, &name);
     store_db_image(&state, &genre_id, &image_type, &headers, &body).await
 }
 
@@ -378,7 +375,7 @@ pub async fn get_studio_image(
     State(state): State<JellyfinState>,
     AxumPath((name, image_type)): AxumPath<(String, String)>,
 ) -> Result<Response, StatusCode> {
-    let studio_id = id_hash(&name);
+    let studio_id = id_hash_prefix(ITEM_PREFIX_STUDIO, &name);
     get_db_image(&state, &studio_id, &image_type).await
 }
 
@@ -390,7 +387,7 @@ pub async fn post_studio_image(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> StatusCode {
-    let studio_id = id_hash(&name);
+    let studio_id = id_hash_prefix(ITEM_PREFIX_STUDIO, &name);
     store_db_image(&state, &studio_id, &image_type, &headers, &body).await
 }
 
@@ -399,7 +396,7 @@ pub async fn get_person_image(
     State(state): State<JellyfinState>,
     AxumPath((name, image_type)): AxumPath<(String, String)>,
 ) -> Result<Response, StatusCode> {
-    let person_id = id_hash(&name);
+    let person_id = id_hash_prefix(ITEM_PREFIX_PERSON, &name);
     get_db_image(&state, &person_id, &image_type).await
 }
 
@@ -411,7 +408,7 @@ pub async fn post_person_image(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> StatusCode {
-    let person_id = id_hash(&name);
+    let person_id = id_hash_prefix(ITEM_PREFIX_PERSON, &name);
     store_db_image(&state, &person_id, &image_type, &headers, &body).await
 }
 

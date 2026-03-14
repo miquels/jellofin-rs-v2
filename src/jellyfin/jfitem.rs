@@ -4,22 +4,14 @@ use anyhow::{anyhow, bail, Context, Result};
 use chrono::Utc;
 use tracing::warn;
 
-use super::id::Id;
 use super::jellyfin::JellyfinState;
 use super::types::*;
 use crate::collection::item::{Episode, Movie, Season, Show};
 use crate::collection::{CollectionType, Item};
 use crate::database::UserData as DbUserData;
-use crate::idhash::id_hash;
+use crate::idhash::*;
 
 type JFItem = BaseItemDto;
-
-// Top-level root ID, parent ID of all collections
-const COLLECTION_ROOT_ID: &str = "e9d5075a555c1cbc394eec4cef295274";
-// ID of dynamically generated Playlist collection
-const PLAYLIST_COLLECTION_ID: &str = "2f0340563593c4d98b97c9bfa21ce23c";
-// ID of dynamically generated favorites collection
-const FAVORITES_COLLECTION_ID: &str = "f4a0b1c2d3e5c4b8a9e6f7d8e9a0b1c2";
 
 const COLLECTION_TYPE_MOVIES: &str = "movies";
 const COLLECTION_TYPE_TVSHOWS: &str = "tvshows";
@@ -39,13 +31,6 @@ const ITEM_TYPE_STUDIO: &str = "Studio";
 const ITEM_TYPE_PERSON: &str = "Person";
 
 const TICKS_TO_SECONDS: i64 = 10_000_000;
-
-// imagetag prefix will get HTTP-redirected
-#[allow(dead_code)]
-const TAG_PREFIX_REDIRECT: &str = "redirect_";
-// imagetag prefix means we will serve the filename from local disk
-#[allow(dead_code)]
-const TAG_PREFIX_FILE: &str = "file_";
 
 // ---------------------------------------------------------------------------
 // Main API functions
@@ -69,8 +54,7 @@ pub async fn get_jfitems_by_parent_id(state: &JellyfinState, user_id: &str, pare
 
     // Specific playlist requested?
     if is_jf_playlist_id(parent_id) {
-        let playlist_id = trim_prefix(parent_id);
-        return make_jfitem_playlist_itemlist(state, user_id, playlist_id)
+        return make_jfitem_playlist_itemlist(state, user_id, parent_id)
             .await
             .with_context(|| "could not find playlist");
     }
@@ -111,7 +95,7 @@ pub async fn get_jfitems_by_parent_id(state: &JellyfinState, user_id: &str, pare
 
     // Specific collection requested?
     if is_jf_collection_id(parent_id) {
-        let collection_id = trim_prefix(parent_id);
+        let collection_id = parent_id;
         let c = state
             .collections
             .get_collection(collection_id)
@@ -127,8 +111,7 @@ pub async fn get_jfitems_by_parent_id(state: &JellyfinState, user_id: &str, pare
     }
 
     // Check if parent_id is a show or season to generate overviews
-    let internal_id = trim_prefix(parent_id);
-    if let Some((_, item)) = state.collections.get_item_by_id(internal_id) {
+    if let Some((_, item)) = state.collections.get_item_by_id(parent_id) {
         match item {
             Item::Show(show) => {
                 return make_jfitem_seasons_overview(state, user_id, &show)
@@ -179,17 +162,16 @@ pub async fn make_jfitem_by_id(state: &JellyfinState, user_id: &str, item_id: &s
         return make_jfitem_collection_playlist(state, user_id).await;
     }
     if is_jf_collection_id(item_id) {
-        return make_jfitem_collection(state, trim_prefix(item_id));
+        return make_jfitem_collection(state, item_id);
     }
     if is_jf_playlist_id(item_id) {
-        return make_jfitem_playlist(state, user_id, trim_prefix(item_id)).await;
+        return make_jfitem_playlist(state, user_id, item_id).await;
     }
 
     // Try to fetch individual item: movie, show, season, episode
-    let internal_id = trim_prefix(item_id);
     let (c, item) = state
         .collections
-        .get_item_by_id(internal_id)
+        .get_item_by_id(item_id)
         .ok_or_else(|| anyhow!("item not found"))?;
     make_jfitem(state, user_id, &item, &c.id).await
 }
@@ -237,7 +219,7 @@ pub async fn make_jfitem_root(state: &JellyfinState, user_id: &str) -> Result<JF
     #[rustfmt::skip]
     let item = JFItem {
         name:                        "Media Folders".to_string(),
-        id:                          make_jf_root_id(COLLECTION_ROOT_ID),
+        id:                          String::from(COLLECTION_ROOT_ID),
         server_id:                   state.server_id.clone(),
         item_type:                   ITEM_TYPE_USER_ROOT_FOLDER.to_string(),
         etag:                        Some(id_hash(COLLECTION_ROOT_ID)),
@@ -292,15 +274,12 @@ pub fn make_jfitem_collection(state: &JellyfinState, collection_id: &str) -> Res
         CollectionType::Shows => COLLECTION_TYPE_TVSHOWS,
     };
 
-    let id = Id::new(collection_id).as_jf_collection();
-    let parent_id = make_jf_root_id(COLLECTION_ROOT_ID);
-
     #[rustfmt::skip]
     let item = JFItem {
         name:                        c.name.clone(),
         server_id:                   state.server_id.clone(),
-        id,
-        parent_id:                   Some(parent_id),
+        id:                          String::from(collection_id),
+        parent_id:                   Some(String::from(COLLECTION_ROOT_ID)),
         etag:                        Some(id_hash(collection_id)),
         date_created:                Some(Utc::now()),
         premiere_date:               Some(Utc::now()),
@@ -330,14 +309,12 @@ pub fn make_jfitem_collection(state: &JellyfinState, collection_id: &str) -> Res
 pub async fn make_jfitem_collection_favorites(state: &JellyfinState, user_id: &str) -> Result<JFItem> {
     let item_count = state.repo.get_favorites(user_id).await.map(|f| f.len() as i32).ok();
 
-    let id = make_jf_collection_favorites_id(FAVORITES_COLLECTION_ID);
-
     #[rustfmt::skip]
     let item = JFItem {
         name:                        "Favorites".to_string(),
         server_id:                   state.server_id.clone(),
-        id,
-        parent_id:                   Some(make_jf_root_id(COLLECTION_ROOT_ID)),
+        id:                          String::from(FAVORITES_COLLECTION_ID),
+        parent_id:                   Some(String::from(COLLECTION_ROOT_ID)),
         etag:                        Some(id_hash(FAVORITES_COLLECTION_ID)),
         date_created:                Some(Utc::now()),
         premiere_date:               Some(Utc::now()),
@@ -392,14 +369,12 @@ pub async fn make_jfitem_collection_playlist(state: &JellyfinState, user_id: &st
         }
     }
 
-    let id = make_jf_collection_playlist_id(PLAYLIST_COLLECTION_ID);
-
     #[rustfmt::skip]
     let item = JFItem {
         name:                        "Playlists".to_string(),
         server_id:                   state.server_id.clone(),
-        id,
-        parent_id:                   Some(make_jf_root_id(COLLECTION_ROOT_ID)),
+        id:                          String::from(PLAYLIST_COLLECTION_ID),
+        parent_id:                   Some(String::from(COLLECTION_ROOT_ID)),
         etag:                        Some(id_hash(PLAYLIST_COLLECTION_ID)),
         date_created:                Some(Utc::now()),
         premiere_date:               Some(Utc::now()),
@@ -430,8 +405,8 @@ async fn make_jfitem_playlist(state: &JellyfinState, user_id: &str, playlist_id:
     #[rustfmt::skip]
     let item = JFItem {
         item_type:                   ITEM_TYPE_PLAYLIST.to_string(),
-        id:                          make_jf_playlist_id(&playlist.id),
-        parent_id:                   Some(make_jf_collection_playlist_id(PLAYLIST_COLLECTION_ID)),
+        id:                          playlist.id.clone(),
+        parent_id:                   Some(String::from(PLAYLIST_COLLECTION_ID)),
         server_id:                   state.server_id.clone(),
         name:                        playlist.name.clone(),
         sort_name:                   Some(playlist.name.clone()),
@@ -539,7 +514,7 @@ async fn make_jfitem_movie(
         id:                          movie.id.clone(),
         server_id:                   state.server_id.clone(),
         item_type:                   ITEM_TYPE_MOVIE.to_string(),
-        parent_id:                   Some(make_jf_collection_id(parent_id)),
+        parent_id:                   Some(String::from(parent_id)),
         original_title:              Some(movie.name.clone()),
         sort_name:                   Some(movie.sort_name.clone()),
         forced_sort_name:            Some(movie.sort_name.clone()),
@@ -670,7 +645,7 @@ async fn make_jfitem_show(
         id:                          show.id.clone(),
         server_id:                   state.server_id.clone(),
         item_type:                   ITEM_TYPE_SHOW.to_string(),
-        parent_id:                   Some(make_jf_collection_id(parent_id)),
+        parent_id:                   Some(String::from(parent_id)),
         original_title:              Some(show.name.clone()),
         sort_name:                   Some(show.sort_name.clone()),
         forced_sort_name:            Some(show.sort_name.clone()),
@@ -744,7 +719,7 @@ async fn make_jfitem_season(state: &JellyfinState, user_id: &str, season: &Seaso
     // Image tags
     let mut image_tags = HashMap::new();
     if !season.poster().is_empty() {
-        image_tags.insert("Primary".to_string(), make_jf_season_id(&season.id));
+        image_tags.insert("Primary".to_string(), season.id.clone());
     }
 
     // Get playstate of the season itself
@@ -777,7 +752,7 @@ async fn make_jfitem_season(state: &JellyfinState, user_id: &str, season: &Seaso
     #[rustfmt::skip]
     let item = JFItem {
         name,
-        id:                     make_jf_season_id(&season.id),
+        id:                     String::from(&season.id),
         server_id:              state.server_id.clone(),
         item_type:              ITEM_TYPE_SEASON.to_string(),
         series_id:              Some(show.id.clone()),
@@ -875,10 +850,10 @@ pub async fn make_jfitem_episode(state: &JellyfinState, user_id: &str, episode: 
     #[rustfmt::skip]
     let item = JFItem {
         name,
-        id:                     make_jf_episode_id(&episode.id),
+        id:                     episode.id.clone(),
         server_id:              state.server_id.clone(),
         item_type:              ITEM_TYPE_EPISODE.to_string(),
-        season_id:              Some(make_jf_season_id(&season.id)),
+        season_id:              Some(season.id.clone()),
         season_name:            Some(make_season_name(season.season_no)),
         series_id:              Some(show.id.clone()),
         series_name:            Some(show.name.clone()),
@@ -919,13 +894,13 @@ pub async fn make_jfitem_episode(state: &JellyfinState, user_id: &str, episode: 
 
 /// make_jfitem_genre creates a genre item.
 pub fn make_jfitem_genre(state: &JellyfinState, genre: &str) -> JFItem {
-    let genre_id = make_jf_genre_id(genre);
+    let genre_id = id_hash_prefix(ITEM_PREFIX_GENRE, genre);
 
     // Try to get actual genre item count from collections
     let mut child_count = 1;
     for c in state.collections.get_collections() {
         let counts = c.genre_count();
-        if let Some(&count) = counts.get(genre) {
+        if let Some(&count) = counts.get(&genre_id) {
             child_count = count as i32;
         }
     }
@@ -948,8 +923,7 @@ pub fn make_jfitem_genre(state: &JellyfinState, genre: &str) -> JFItem {
 
 /// make_jfitem_studio creates a studio item.
 pub fn make_jfitem_studio(state: &JellyfinState, studio: &str) -> JFItem {
-    let studio_id = make_jf_studio_id(studio);
-
+    let studio_id = id_hash_prefix(ITEM_PREFIX_STUDIO, studio);
     JFItem {
         id: studio_id.clone(),
         server_id: state.server_id.clone(),
@@ -982,7 +956,7 @@ fn make_jf_genre_items(genres: &[String]) -> Vec<NameGuidPair> {
         .iter()
         .map(|g| NameGuidPair {
             name: g.clone(),
-            id: make_jf_genre_id(g),
+            id: id_hash_prefix(ITEM_PREFIX_GENRE, g),
         })
         .collect()
 }
@@ -993,7 +967,7 @@ fn make_jf_studio_pairs(studios: &[String]) -> Vec<NameGuidPair> {
         .iter()
         .map(|s| NameGuidPair {
             name: s.clone(),
-            id: make_jf_studio_id(s),
+            id: id_hash_prefix(ITEM_PREFIX_STUDIO, s)
         })
         .collect()
 }
@@ -1160,13 +1134,13 @@ fn make_jf_media_streams(metadata: &crate::collection::Metadata) -> Vec<MediaStr
 }
 
 pub fn make_jf_item_person(person: &crate::database::model::Person, server_id: &str) -> BaseItemDto {
-    let id = make_jf_person_id(&person.name);
+    let person_id = id_hash_prefix(ITEM_PREFIX_PERSON, &person.name);
     let mut dto = BaseItemDto {
-        id: id.clone(),
+        id: person_id.clone(),
         name: person.name.clone(),
         server_id: server_id.to_string(),
         item_type: "Person".to_string(),
-        etag: Some(id.clone()),
+        etag: Some(person_id.clone()),
         overview: Some(person.bio.clone()),
         date_created: Some(person.date_of_birth),
         premiere_date: Some(person.date_of_birth),
@@ -1184,14 +1158,14 @@ pub fn make_jf_item_person(person: &crate::database::model::Person, server_id: &
         let mut image_tags = HashMap::new();
         image_tags.insert(
             "Primary".to_string(),
-            format!("{}{}", TAG_PREFIX_REDIRECT, person.poster_url),
+            person.poster_url.clone(),
         );
         dto.image_tags = image_tags;
     }
 
     dto.user_data = Some(UserItemDataDto {
         key: format!("Person-{}", person.name),
-        item_id: id,
+        item_id: person_id,
         ..UserItemDataDto::default()
     });
 
@@ -1220,126 +1194,4 @@ fn item_is_hd(metadata: &crate::collection::Metadata) -> bool {
 /// item_is_4k checks if the item is 4K (2160p or higher).
 fn item_is_4k(metadata: &crate::collection::Metadata) -> bool {
     metadata.video_height.map(|h| h >= 1500).unwrap_or(false)
-}
-
-// ---------------------------------------------------------------------------
-// ID helper functions
-// ---------------------------------------------------------------------------
-
-const ITEM_PREFIX_SEPARATOR: &str = "_";
-const ITEM_PREFIX_ROOT: &str = "root_";
-const ITEM_PREFIX_COLLECTION: &str = "collection_";
-const ITEM_PREFIX_COLLECTION_FAVORITES: &str = "collectionfavorites_";
-const ITEM_PREFIX_COLLECTION_PLAYLIST: &str = "collectionplaylist_";
-#[allow(dead_code)]
-const ITEM_PREFIX_SHOW: &str = "show_";
-const ITEM_PREFIX_SEASON: &str = "season_";
-const ITEM_PREFIX_EPISODE: &str = "episode_";
-const ITEM_PREFIX_PLAYLIST: &str = "playlist_";
-const ITEM_PREFIX_GENRE: &str = "genre_";
-const ITEM_PREFIX_STUDIO: &str = "studio_";
-#[allow(dead_code)]
-const ITEM_PREFIX_PERSON: &str = "person_";
-const ITEM_PREFIX_DISPLAY_PREFERENCES: &str = "dp_";
-
-fn make_jf_root_id(root_id: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_ROOT, root_id)
-}
-
-fn make_jf_collection_id(collection_id: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_COLLECTION, collection_id)
-}
-
-fn make_jf_collection_favorites_id(favorites_id: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_COLLECTION_FAVORITES, favorites_id)
-}
-
-fn make_jf_collection_playlist_id(playlist_collection_id: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_COLLECTION_PLAYLIST, playlist_collection_id)
-}
-
-fn make_jf_playlist_id(playlist_id: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_PLAYLIST, playlist_id)
-}
-
-fn make_jf_season_id(season_id: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_SEASON, season_id)
-}
-
-fn make_jf_episode_id(episode_id: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_EPISODE, episode_id)
-}
-
-fn make_jf_display_preferences_id(dp_id: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_DISPLAY_PREFERENCES, dp_id)
-}
-
-pub fn make_jf_genre_id(genre: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_GENRE, id_hash(genre))
-}
-
-fn make_jf_studio_id(studio: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_STUDIO, id_hash(studio))
-}
-
-#[allow(dead_code)]
-fn make_jf_person_id(name: &str) -> String {
-    format!("{}{}", ITEM_PREFIX_PERSON, id_hash(name))
-}
-
-/// trim_prefix removes the type prefix from an item id.
-pub fn trim_prefix(s: &str) -> &str {
-    if let Some(pos) = s.find(ITEM_PREFIX_SEPARATOR) {
-        &s[pos + 1..]
-    } else {
-        s
-    }
-}
-
-pub fn is_jf_root_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_ROOT)
-}
-
-pub fn is_jf_collection_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_COLLECTION)
-}
-
-pub fn is_jf_collection_favorites_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_COLLECTION_FAVORITES)
-}
-
-pub fn is_jf_collection_playlist_id(id: &str) -> bool {
-    id == make_jf_collection_playlist_id(PLAYLIST_COLLECTION_ID)
-}
-
-fn is_jf_playlist_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_PLAYLIST)
-}
-
-#[allow(dead_code)]
-fn is_jf_show_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_SHOW)
-}
-
-#[allow(dead_code)]
-fn is_jf_season_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_SEASON)
-}
-
-#[allow(dead_code)]
-fn is_jf_episode_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_EPISODE)
-}
-
-fn is_jf_genre_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_GENRE)
-}
-
-fn is_jf_studio_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_STUDIO)
-}
-
-#[allow(dead_code)]
-fn is_jf_person_id(id: &str) -> bool {
-    id.starts_with(ITEM_PREFIX_PERSON)
 }

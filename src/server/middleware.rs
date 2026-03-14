@@ -1,20 +1,47 @@
 use axum::{extract::{Request, State}, middleware::Next, response::Response};
 use std::net::IpAddr;
+use std::task::{Context, Poll};
+use tower::Service;
 use tracing::info;
 use crate::server::AppState;
 
-/// Middleware to normalize request paths and query parameters.
-/// 1. Removes redundant slashes (// -> /)
-/// 2. Strips /emby prefix for Jellyfin compatibility
-/// 3. Lowercases first character of query parameter names (like Go's normalizeJellyfinRequest)
-/// 4. Merges duplicate query parameter keys into comma-separated values
-///    (e.g. includeItemTypes=Movie&includeItemTypes=Series -> includeItemTypes=Movie,Series)
-pub async fn normalize_path_middleware(mut req: Request, next: Next) -> Response {
+/// Tower service that normalizes request URIs before passing to inner service.
+/// Generic over body type so it works with both `axum::serve` (Body) and `axum_server` (Incoming).
+#[derive(Clone)]
+pub struct NormalizePathService<S> {
+    inner: S,
+}
+
+impl<S> NormalizePathService<S> {
+    pub fn new(inner: S) -> Self {
+        Self { inner }
+    }
+}
+
+impl<S, B> Service<axum::http::Request<B>> for NormalizePathService<S>
+where
+    S: Service<axum::http::Request<B>>,
+{
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.inner.poll_ready(cx)
+    }
+
+    fn call(&mut self, mut req: axum::http::Request<B>) -> Self::Future {
+        normalize_uri(&mut req);
+        self.inner.call(req)
+    }
+}
+
+fn normalize_uri<B>(req: &mut axum::http::Request<B>) {
     let uri = req.uri();
     let path = uri.path();
 
     // Remove double slashes
-    let mut normalized_path = path.to_string();
+    let mut normalized_path = path.to_lowercase();
     while normalized_path.contains("//") {
         normalized_path = normalized_path.replace("//", "/");
     }
@@ -65,25 +92,13 @@ pub async fn normalize_path_middleware(mut req: Request, next: Next) -> Response
     // Rebuild URI if anything changed
     let original_query = uri.query().map(|q| q.to_string());
     if normalized_path != path || normalized_query != original_query {
-        info!("normalize: ORIGINAL query = {:?}", original_query);
-        info!("normalize: NORMALIZED query = {:?}", normalized_query);
+        let s = if normalized_query.is_some() { "?" } else { "" };
+        let q = normalized_query.as_ref().map(|s| s.as_str()).unwrap_or("");
+        let cleaned = format!("{}{}{}", normalized_path, s, q);
         let mut parts = uri.clone().into_parts();
-        parts.path_and_query = Some(
-            format!(
-                "{}{}",
-                normalized_path,
-                normalized_query
-                    .as_ref()
-                    .map(|q| format!("?{}", q))
-                    .unwrap_or_default()
-            )
-            .parse()
-            .unwrap(),
-        );
+        parts.path_and_query = Some(cleaned.parse().unwrap());
         *req.uri_mut() = axum::http::Uri::from_parts(parts).unwrap();
     }
-
-    next.run(req).await
 }
 
 pub async fn log_request_middleware(

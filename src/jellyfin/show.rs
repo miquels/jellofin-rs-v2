@@ -20,9 +20,7 @@ pub async fn show_episodes(
     AxumPath(show_id): AxumPath<String>,
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
-    let internal_id = trim_prefix(&show_id);
-
-    let show = match state.collections.get_item_by_id(internal_id) {
+    let show = match state.collections.get_item_by_id(&show_id) {
         Some((_, Item::Show(s))) => s,
         _ => return Err(StatusCode::NOT_FOUND),
     };
@@ -57,8 +55,7 @@ pub async fn show_seasons(
     AxumPath(show_id): AxumPath<String>,
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
-    let internal_id = trim_prefix(&show_id);
-    if let Some((_, Item::Show(show))) = state.collections.get_item_by_id(internal_id) {
+    if let Some((_, Item::Show(show))) = state.collections.get_item_by_id(&show_id) {
         let mut items = make_jfitem_seasons_overview(&state, &token.user_id, &show)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;

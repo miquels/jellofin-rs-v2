@@ -13,6 +13,7 @@ use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
 use crate::database::model;
+use crate::idhash::*;
 
 /// GET /Items/{item} - Get details for a specific item
 pub async fn item_details(
@@ -39,6 +40,8 @@ pub async fn items_query(
     let parent_id = query_params.get("parentId").cloned();
     let search_term = query_params.get("searchTerm").cloned();
     let recursive = query_params.get("recursive").map(|v| v == "true").unwrap_or(false);
+
+    println!("XXX parentId {:?} searchTerm {:?} recursive {:?}", parent_id, search_term, recursive);
 
     let mut items = Vec::new();
 
@@ -120,7 +123,7 @@ async fn query_items_presorted(
                 let item_genre_ids: Vec<String> = item
                     .genres()
                     .iter()
-                    .map(|g| super::jfitem::make_jf_genre_id(g))
+                    .map(|g| id_hash_prefix(ITEM_PREFIX_GENRE, g))
                     .collect();
                 if !gids.iter().any(|gid| item_genre_ids.iter().any(|ig| ig == gid)) {
                     continue;
@@ -305,10 +308,9 @@ pub async fn items_similar(
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UsersItemsSimilarResponse>, StatusCode> {
     let item_id = path.last().ok_or(StatusCode::BAD_REQUEST)?;
-    let internal_id = trim_prefix(item_id);
     let (collection, item) = state
         .collections
-        .get_item_by_id(internal_id)
+        .get_item_by_id(&item_id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
     let limit = query_params.get("limit").and_then(|v| v.parse::<usize>().ok()).unwrap_or(10);
@@ -358,10 +360,9 @@ pub async fn items_playback_info(
     State(state): State<JellyfinState>,
     AxumPath(item_id): AxumPath<String>,
 ) -> Result<Json<PlaybackInfoResponse>, StatusCode> {
-    let internal_id = trim_prefix(&item_id);
     let (_, item) = state
         .collections
-        .get_item_by_id(internal_id)
+        .get_item_by_id(&item_id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
     use crate::collection::Item;
@@ -402,7 +403,7 @@ pub async fn search_hints(
     // Determine if we should scope search to a specific collection
     let search_collection_id = query_params.get("parentId").and_then(|pid| {
         if is_jf_collection_id(pid) {
-            Some(trim_prefix(pid).to_string())
+            Some(pid.to_string())
         } else {
             None
         }
@@ -440,10 +441,9 @@ pub async fn item_ancestors(
     State(state): State<JellyfinState>,
     AxumPath(item_id): AxumPath<String>,
 ) -> Result<Json<Vec<BaseItemDto>>, StatusCode> {
-    let internal_id = trim_prefix(&item_id);
     let (collection, _) = state
         .collections
-        .get_item_by_id(internal_id)
+        .get_item_by_id(&item_id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
     let collection_item =
@@ -494,7 +494,7 @@ pub async fn item_filters2(
         .into_iter()
         .map(|g| NameGuidPair {
             name: g.clone(),
-            id: crate::idhash::id_hash(&g),
+            id: id_hash_prefix(ITEM_PREFIX_GENRE, &g),
         })
         .collect();
 

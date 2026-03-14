@@ -6,7 +6,7 @@ use walkdir::WalkDir;
 use super::collection::Collection;
 use super::item::{Episode, Item, Movie, Season, Show};
 use super::metadata::Metadata;
-use crate::idhash::id_hash;
+use crate::idhash::*;
 
 /// Build movies collection by scanning directory
 pub fn build_movies(collection: &mut Collection, _scan_interval: Duration) {
@@ -77,7 +77,7 @@ fn scan_movie_directory(path: &Path, collection_root: &str) -> Option<Movie> {
     let video_path = video_file.strip_prefix(collection_root).ok()?;
 
     // Generate ID from directory name
-    let id = id_hash(dir_name);
+    let id = id_hash_prefix(ITEM_PREFIX_MOVIE, dir_name);
 
     // Get relative path
     let relative_path = path.strip_prefix(collection_root).ok()?.to_str()?.to_string();
@@ -117,7 +117,7 @@ fn scan_show_directory(path: &Path, collection_root: &str) -> Option<Show> {
     let dir_name = path.file_name()?.to_str()?;
 
     // Generate ID from directory name
-    let id = id_hash(dir_name);
+    let id = id_hash_prefix(ITEM_PREFIX_SHOW, dir_name);
 
     // Get relative path
     let relative_path = path.strip_prefix(collection_root).ok()?.to_str()?.to_string();
@@ -192,7 +192,7 @@ fn scan_show_directory(path: &Path, collection_root: &str) -> Option<Show> {
 /// Scan a season directory for episodes
 fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option<Season> {
     let season_name = format!("Season {}", season_no);
-    let season_id = id_hash(&format!("{}-{}", show_path, season_no));
+    let season_id = id_hash_prefix(ITEM_PREFIX_SEASON, &format!("{}-{}", show_path, season_no));
 
     let mut episodes = Vec::new();
 
@@ -219,7 +219,7 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
             super::parsefilename::parse_episode_name(file_name, season_no)
         {
             if parsed_season == season_no {
-                let episode_id = id_hash(&format!("{}-s{}e{}", show_path, parsed_season, episode_no));
+                let episode_id = id_hash_prefix(ITEM_PREFIX_EPISODE, &format!("{}-s{}e{}", show_path, parsed_season, episode_no));
 
                 let episode = Episode {
                     id: episode_id,

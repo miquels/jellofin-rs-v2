@@ -50,7 +50,7 @@ pub async fn create_playlist(
     if ids.is_empty() {
         if let Some(query_ids) = query.ids {
             for id in query_ids.split(',') {
-                ids.push(trim_prefix(id).to_string());
+                ids.push(id.to_string());
             }
         }
     }
@@ -60,7 +60,7 @@ pub async fn create_playlist(
         return (
             StatusCode::OK,
             Json(CreatePlaylistResponse {
-                id: format!("playlist_{}", existing.id),
+                id: existing.id.clone(),
             }),
         )
             .into_response();
@@ -79,9 +79,7 @@ pub async fn create_playlist(
     match state.repo.create_playlist(&new_playlist).await {
         Ok(id) => (
             StatusCode::CREATED,
-            Json(CreatePlaylistResponse {
-                id: format!("playlist_{}", id),
-            }),
+            Json(CreatePlaylistResponse { id }),
         )
             .into_response(),
         Err(e) => {
@@ -103,8 +101,7 @@ pub async fn get_playlist(
     Path(playlist_id): Path<String>,
     State(state): State<JellyfinState>,
 ) -> impl IntoResponse {
-    let id = trim_prefix(&playlist_id);
-    match state.repo.get_playlist(&token.user_id, id).await {
+    match state.repo.get_playlist(&token.user_id, &playlist_id).await {
         Ok(p) => Json(GetPlaylistResponse {
             open_access: false,
             shares: Vec::new(),
@@ -126,8 +123,7 @@ pub async fn get_playlist_items(
     Path(playlist_id): Path<String>,
     State(state): State<JellyfinState>,
 ) -> impl IntoResponse {
-    let id = trim_prefix(&playlist_id);
-    let playlist = match state.repo.get_playlist(&token.user_id, id).await {
+    let playlist = match state.repo.get_playlist(&token.user_id, &playlist_id).await {
         Ok(p) => p,
         Err(_) => return apierror(StatusCode::NOT_FOUND, "Playlist not found").into_response(),
     };
@@ -158,18 +154,14 @@ pub async fn add_playlist_items(
     Query(query): Query<PlaylistIdQuery>,
     State(state): State<JellyfinState>,
 ) -> impl IntoResponse {
-    let id = trim_prefix(&playlist_id);
     let ids_str = match query.ids {
         Some(s) => s,
         None => return apierror(StatusCode::BAD_REQUEST, "Ids parameter required").into_response(),
     };
 
-    let mut item_ids: Vec<String> = Vec::new();
-    for i in ids_str.split(',') {
-        item_ids.push(trim_prefix(i).to_string());
-    }
+    let item_ids: Vec<_> = ids_str.split(',').map(|s| s.to_string()).collect();
 
-    if let Err(_) = state.repo.add_items_to_playlist(&token.user_id, id, &item_ids).await {
+    if let Err(_) = state.repo.add_items_to_playlist(&token.user_id, &playlist_id, &item_ids).await {
         return apierror(StatusCode::INTERNAL_SERVER_ERROR, "Failed to add items").into_response();
     }
 
@@ -200,14 +192,6 @@ pub async fn get_playlist_users(Extension(token): Extension<AccessToken>) -> Jso
         users: vec![token.user_id.clone()],
         can_edit: true,
     })
-}
-
-fn trim_prefix(id: &str) -> &str {
-    if id.starts_with("playlist_") {
-        &id["playlist_".len()..]
-    } else {
-        id
-    }
 }
 
 pub struct PlaylistIdQuery {

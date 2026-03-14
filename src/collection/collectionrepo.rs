@@ -7,7 +7,7 @@ use tracing::info;
 
 use super::collection::{Collection, CollectionType};
 use super::item::Item;
-use crate::idhash::id_hash;
+use crate::idhash::*;
 
 /// CollectionRepo is a repository holding content collections.
 pub struct CollectionRepo {
@@ -34,7 +34,7 @@ impl CollectionRepo {
         let ct = CollectionType::from_str(collection_type)
             .ok_or_else(|| format!("Unknown collection type: {}", collection_type))?;
 
-        let collection_id = id.unwrap_or_else(|| id_hash(&name));
+        let collection_id = id.unwrap_or_else(|| id_hash_prefix(ITEM_PREFIX_COLLECTION, &name));
 
         info!(
             "Adding collection {}, id: {}, type: {}, directory: {}",
@@ -343,6 +343,7 @@ impl CollectionRepo {
 
     /// Search performs a item search in collection repository and returns matching items.
     pub fn search(&self, term: &str) -> Vec<String> {
+        println!("XXX search {}", term);
         let mut results = Vec::new();
         let term_lower = term.to_lowercase();
         let collections = self.collections.load();
@@ -379,6 +380,7 @@ impl CollectionRepo {
                 }
             }
         }
+        println!("XXX search results: {}", results.len());
         results
     }
 

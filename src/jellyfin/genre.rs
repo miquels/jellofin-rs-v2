@@ -20,8 +20,7 @@ pub async fn genres_all(
     let parent_id = query_params.get("parentId").cloned();
 
     let genres = if let Some(pid) = parent_id {
-        let internal_pid = trim_prefix(&pid);
-        if let Some(collection) = state.collections.get_collection(internal_pid) {
+        if let Some(collection) = state.collections.get_collection(&pid) {
             collection.details().genres.clone()
         } else {
             Vec::new()

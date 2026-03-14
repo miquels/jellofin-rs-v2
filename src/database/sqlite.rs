@@ -1,10 +1,12 @@
-use async_trait::async_trait;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use async_trait::async_trait;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
+
+use crate::idhash::*;
 use super::model::{AccessToken, DatabaseError, ImageMetadata, Item, Person, Playlist, QuickConnectCode, Result, User, UserData, UserProperties};
 use super::{AccessTokenRepo, ImageRepo, ItemRepo, PersonRepo, PlaylistRepo, QuickConnectRepo, Repository, UserDataRepo, UserRepo};
 
@@ -637,10 +639,19 @@ impl PlaylistRepo for SqliteRepository {
         let item_ids_json = serde_json::to_string(&playlist.item_ids)?;
         let now = chrono::Utc::now().to_rfc3339();
 
+        #[allow(unused_assignments)]
+        let mut new_id = String::new();
+        let playlist_id = if playlist.id == "" {
+            new_id = id_hash_prefix(ITEM_PREFIX_PLAYLIST, &format!("{}:{}", playlist.user_id, playlist.name));
+            new_id.as_str()
+        } else {
+            &playlist.id
+        };
+
         sqlx::query(
             "INSERT OR REPLACE INTO playlists (id, user_id, name, item_ids, created, last_updated) VALUES (?, ?, ?, ?, ?, ?)"
         )
-            .bind(&playlist.id)
+            .bind(&playlist_id)
             .bind(&playlist.user_id)
             .bind(&playlist.name)
             .bind(&item_ids_json)

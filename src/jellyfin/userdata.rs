@@ -21,11 +21,9 @@ pub async fn users_item_userdata(
     Path(params): Path<(String, String)>,
 ) -> Json<UserItemDataDto> {
     let item_id = &params.1;
-    let internal_id = trim_prefix(item_id);
-
     let playstate = state
         .repo
-        .get_user_data(&token.user_id, internal_id)
+        .get_user_data(&token.user_id, item_id)
         .await
         .ok();
 
@@ -38,11 +36,9 @@ pub async fn users_item_userdata_simple(
     State(state): State<JellyfinState>,
     Path(item_id): Path<String>,
 ) -> Json<UserItemDataDto> {
-    let internal_id = trim_prefix(&item_id);
-
     let playstate = state
         .repo
-        .get_user_data(&token.user_id, internal_id)
+        .get_user_data(&token.user_id, &item_id)
         .await
         .ok();
 
@@ -143,11 +139,9 @@ pub async fn user_favorite_items_post(
     Path(params): Path<(String, String)>,
 ) -> Result<Json<UserItemDataDto>, StatusCode> {
     let item_id = &params.1;
-    let internal_id = trim_prefix(item_id);
-
     let mut playstate = state
         .repo
-        .get_user_data(&token.user_id, internal_id)
+        .get_user_data(&token.user_id, item_id)
         .await
         .unwrap_or_else(|_| DbUserData {
             position: 0,
@@ -162,7 +156,7 @@ pub async fn user_favorite_items_post(
 
     if state
         .repo
-        .update_user_data(&token.user_id, internal_id, &playstate)
+        .update_user_data(&token.user_id, item_id, &playstate)
         .await
         .is_ok()
     {
@@ -177,11 +171,9 @@ pub async fn user_favorite_items_post_simple(
     State(state): State<JellyfinState>,
     Path(item_id): Path<String>,
 ) -> Result<Json<UserItemDataDto>, StatusCode> {
-    let internal_id = trim_prefix(&item_id);
-
     let mut playstate = state
         .repo
-        .get_user_data(&token.user_id, internal_id)
+        .get_user_data(&token.user_id, &item_id)
         .await
         .unwrap_or_else(|_| DbUserData {
             position: 0,
@@ -196,7 +188,7 @@ pub async fn user_favorite_items_post_simple(
 
     if state
         .repo
-        .update_user_data(&token.user_id, internal_id, &playstate)
+        .update_user_data(&token.user_id, &item_id, &playstate)
         .await
         .is_ok()
     {
@@ -214,11 +206,10 @@ pub async fn user_favorite_items_delete(
     Path(params): Path<(String, String)>,
 ) -> Result<Json<UserItemDataDto>, StatusCode> {
     let item_id = &params.1;
-    let internal_id = trim_prefix(item_id);
 
     let mut playstate = state
         .repo
-        .get_user_data(&token.user_id, internal_id)
+        .get_user_data(&token.user_id, item_id)
         .await
         .unwrap_or_else(|_| DbUserData {
             position: 0,
@@ -233,7 +224,7 @@ pub async fn user_favorite_items_delete(
 
     if state
         .repo
-        .update_user_data(&token.user_id, internal_id, &playstate)
+        .update_user_data(&token.user_id, item_id, &playstate)
         .await
         .is_ok()
     {
@@ -248,11 +239,9 @@ pub async fn user_favorite_items_delete_simple(
     State(state): State<JellyfinState>,
     Path(item_id): Path<String>,
 ) -> Result<Json<UserItemDataDto>, StatusCode> {
-    let internal_id = trim_prefix(&item_id);
-
     let mut playstate = state
         .repo
-        .get_user_data(&token.user_id, internal_id)
+        .get_user_data(&token.user_id, &item_id)
         .await
         .unwrap_or_else(|_| DbUserData {
             position: 0,
@@ -267,7 +256,7 @@ pub async fn user_favorite_items_delete_simple(
 
     if state
         .repo
-        .update_user_data(&token.user_id, internal_id, &playstate)
+        .update_user_data(&token.user_id, &item_id, &playstate)
         .await
         .is_ok()
     {
@@ -284,8 +273,6 @@ async fn user_data_update(
     position_ticks: i64,
     mark_as_watched: bool,
 ) -> anyhow::Result<()> {
-    let internal_id = trim_prefix(item_id);
-
     // Ignore updates with zero position unless explicitly marking as watched.
     // Clients send position_ticks=0 on abrupt stop, which would erase real progress.
     if position_ticks == 0 && !mark_as_watched {
@@ -295,7 +282,7 @@ async fn user_data_update(
 
     let mut duration = 0;
 
-    if let Some((_, item)) = state.collections.get_item_by_id(internal_id) {
+    if let Some((_, item)) = state.collections.get_item_by_id(&item_id) {
         duration = item.duration().map(|d| d.as_secs() as i64).unwrap_or(0);
     }
 
@@ -306,7 +293,7 @@ async fn user_data_update(
 
     let mut playstate = state
         .repo
-        .get_user_data(user_id, internal_id)
+        .get_user_data(user_id, &item_id)
         .await
         .unwrap_or_else(|_| DbUserData {
             position: 0,
@@ -337,6 +324,6 @@ async fn user_data_update(
 
     playstate.timestamp = Utc::now();
 
-    state.repo.update_user_data(user_id, internal_id, &playstate).await?;
+    state.repo.update_user_data(user_id, &item_id, &playstate).await?;
     Ok(())
 }
