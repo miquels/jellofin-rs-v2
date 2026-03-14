@@ -38,19 +38,20 @@ pub async fn items_query(
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
     let parent_id = query_params.get("parentId").cloned();
-    let search_term = query_params.get("searchTerm").cloned();
+    let search_term = query_params.get("searchTerm").map(|v| v.to_lowercase());
     let recursive = query_params.get("recursive").map(|v| v == "true").unwrap_or(false);
 
-    println!("XXX parentId {:?} searchTerm {:?} recursive {:?}", parent_id, search_term, recursive);
+    println!(
+        "XXX parentId {:?} searchTerm {:?} recursive {:?}",
+        parent_id, search_term, recursive
+    );
 
-    let mut items = Vec::new();
+    let items;
 
     if let Some(ref pid) = parent_id {
-        if search_term.is_none() {
-            items = get_jfitems_by_parent_id(&state, &token.user_id, pid)
-                .await
-                .map_err(|_| StatusCode::NOT_FOUND)?;
-        }
+        items = get_jfitems_by_parent_id(&state, &token.user_id, pid)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?;
     } else if !recursive {
         items = make_jfcollection_root_overview(&state, &token.user_id)
             .await
@@ -58,27 +59,17 @@ pub async fn items_query(
     } else {
         // Recursive query across all collections — pre-filter and pre-sort at the
         // collection level to avoid building DTOs for all items when only a few are needed.
-        let result = query_items_presorted(&state, &token.user_id, &query_params)
+        items = query_items_prefilter(&state, &token.user_id, &query_params)
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        return Ok(Json(result));
     }
 
-    // If searchTerm is provided, search in whole collection
-    if let Some(ref st) = search_term {
-        let found_ids = state.collections.search(st);
-        let mut search_items = Vec::new();
-        for id in found_ids {
-            if let Some((c, item)) = state.collections.get_item_by_id(&id) {
-                if let Ok(dto) = make_jfitem(&state, &token.user_id, &item, &c.id).await {
-                    search_items.push(dto);
-                }
-            }
-        }
-        items = search_items;
-    }
+    println!("XXX first results: {}", items.len());
 
     let items = apply_items_filter(items, &query_params);
+
+    println!("XXX second results: {}", items.len());
+
     let total_item_count = items.len() as i32;
     let sorted_items = apply_item_sorting(items, &query_params);
     let (mut paged_items, start_index) = apply_item_pagination(sorted_items, &query_params);
@@ -91,14 +82,14 @@ pub async fn items_query(
     }))
 }
 
-/// Pre-filter and pre-sort items at the collection level, then build DTOs
+/// Pre-filter items at the collection level, then build DTOs
 /// only for the items that will actually be returned. This avoids building
 /// DTOs for all 6990+ items when the client only needs 3.
-async fn query_items_presorted(
+async fn query_items_prefilter(
     state: &JellyfinState,
     user_id: &str,
     query_params: &HashMap<String, String>,
-) -> Result<UserItemsResponse, StatusCode> {
+) -> Result<Vec<BaseItemDto>, StatusCode> {
     use crate::collection::Item;
 
     // Collect type filter
@@ -107,17 +98,28 @@ async fn query_items_presorted(
     // Genre filter: genreIds are "genre_<hash>" — we need to match by generating IDs from item genres
     let genre_ids: Option<Vec<&str>> = query_params.get("genreIds").map(|g| g.split('|').collect());
 
+    // Search term.
+    let search_term = query_params.get("searchTerm").map(|s| s.to_lowercase());
+
     // Gather matching (item_ref, collection_id) pairs from all collections
     let collections = state.collections.get_collections();
     let mut matching: Vec<(&Item, &str)> = Vec::new();
     for c in &collections {
         for item in &c.items {
+            // Search term.
+            if let Some(ref term) = search_term {
+                if !item.name().to_lowercase().contains(term.as_str()) {
+                    continue;
+                }
+            }
+
             // Type filter
             if let Some(ref types) = type_filter {
                 if !types.contains(&item.jf_type()) {
                     continue;
                 }
             }
+
             // Genre filter
             if let Some(ref gids) = genre_ids {
                 let item_genre_ids: Vec<String> = item
@@ -133,76 +135,16 @@ async fn query_items_presorted(
         }
     }
 
-    let total_item_count = matching.len() as i32;
-
-    // Sort at collection level
-    let sort_by = query_params.get("sortBy").cloned().unwrap_or_default();
-    let descending = query_params
-        .get("sortOrder")
-        .map(|s| s.eq_ignore_ascii_case("descending"))
-        .unwrap_or(false);
-
-    if !sort_by.is_empty() {
-        let sort_fields: Vec<String> = sort_by.split(',').map(|s| s.to_lowercase()).collect();
-        matching.sort_by(|(a, _), (b, _)| {
-            for field in &sort_fields {
-                let ord = match field.as_str() {
-                    "datecreated" | "datelastcontentadded" => a.created().cmp(&b.created()),
-                    "premieredate" => a.premiere_date().cmp(&b.premiere_date()),
-                    "communityrating" => {
-                        let ar = a.community_rating().unwrap_or(0.0);
-                        let br = b.community_rating().unwrap_or(0.0);
-                        ar.partial_cmp(&br).unwrap_or(std::cmp::Ordering::Equal)
-                    }
-                    "productionyear" => a.production_year().cmp(&b.production_year()),
-                    "name" | "sortname" | "seriessortname" | "default" => a.sort_name().cmp(b.sort_name()),
-                    "random" => {
-                        let mut rng = rand::thread_rng();
-                        if rng.gen_bool(0.5) {
-                            std::cmp::Ordering::Less
-                        } else {
-                            std::cmp::Ordering::Greater
-                        }
-                    }
-                    _ => std::cmp::Ordering::Equal,
-                };
-                if ord != std::cmp::Ordering::Equal {
-                    return if descending { ord.reverse() } else { ord };
-                }
-            }
-            std::cmp::Ordering::Equal
-        });
-    }
-
-    // Apply pagination
-    let start_index = query_params
-        .get("startIndex")
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(0);
-    let limit = query_params.get("limit").and_then(|v| v.parse::<usize>().ok());
-
-    let paged: Vec<(&Item, &str)> = matching
-        .into_iter()
-        .skip(start_index)
-        .take(limit.unwrap_or(usize::MAX))
-        .collect();
-
     // Build DTOs only for the selected items
-    let mut items = Vec::with_capacity(paged.len());
-    for (item, collection_id) in paged {
+    let mut items = Vec::with_capacity(matching.len());
+    for (item, collection_id) in matching {
         match make_jfitem_light(state, user_id, item, collection_id).await {
             Ok(dto) => items.push(dto),
-            Err(e) => warn!("query_items_presorted: {}", e),
+            Err(e) => warn!("query_items_prefilter: {}", e),
         }
     }
 
-    apply_fields_filter(&mut items, query_params);
-
-    Ok(UserItemsResponse {
-        items,
-        start_index: start_index as i32,
-        total_record_count: total_item_count,
-    })
+    Ok(items)
 }
 
 /// GET /Items/Latest - Get latest items
@@ -313,7 +255,10 @@ pub async fn items_similar(
         .get_item_by_id(&item_id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let limit = query_params.get("limit").and_then(|v| v.parse::<usize>().ok()).unwrap_or(10);
+    let limit = query_params
+        .get("limit")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(10);
     let similar_ids = state.collections.similar(&collection.id, &item.id(), limit).await;
 
     let mut items = Vec::new();
@@ -786,7 +731,8 @@ pub(super) fn apply_item_filter(i: &BaseItemDto, qp: &HashMap<String, String>) -
 
     // searchTerm
     if let Some(term) = qp.get("searchTerm") {
-        if !i.name.to_lowercase().contains(&term.to_lowercase()) {
+        let media = is_jf_movie_id(&i.id) || is_jf_show_id(&i.id) || is_jf_season_id(&i.id) || is_jf_episode_id(&i.id);
+        if media && !i.name.to_lowercase().contains(&term.to_lowercase()) {
             return false;
         }
     }

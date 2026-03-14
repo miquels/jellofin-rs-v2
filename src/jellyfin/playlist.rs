@@ -1,6 +1,6 @@
 use super::error::apierror;
-use super::jfitem::make_jfitem;
 use super::jellyfin::JellyfinState;
+use super::jfitem::make_jfitem;
 use super::types::*;
 use crate::database::model::{AccessToken, Playlist};
 use axum::{
@@ -12,7 +12,7 @@ use axum::{
 use serde::Deserialize;
 use tracing::error;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct CreatePlaylistQuery {
     pub name: Option<String>,
     #[serde(rename = "userId")]
@@ -27,6 +27,9 @@ pub async fn create_playlist(
     State(state): State<JellyfinState>,
     Json(body): Json<Option<CreatePlaylistRequest>>,
 ) -> impl IntoResponse {
+    println!("XXX create_playlist: query: {:?}", query);
+    println!("XXX create_playlist: body: {:?}", body);
+
     let mut name = query.name.unwrap_or_default();
     let mut user_id = query.user_id.unwrap_or_default();
     let mut ids = Vec::new();
@@ -77,20 +80,10 @@ pub async fn create_playlist(
     };
 
     match state.repo.create_playlist(&new_playlist).await {
-        Ok(id) => (
-            StatusCode::CREATED,
-            Json(CreatePlaylistResponse { id }),
-        )
-            .into_response(),
+        Ok(id) => (StatusCode::CREATED, Json(CreatePlaylistResponse { id })).into_response(),
         Err(e) => {
             error!("Failed to create playlist '{}' for user '{}': {}", name, user_id, e);
-            (
-                StatusCode::OK,
-                Json(CreatePlaylistResponse {
-                    id: String::new(),
-                }),
-            )
-                .into_response()
+            (StatusCode::OK, Json(CreatePlaylistResponse { id: String::new() })).into_response()
         }
     }
 }
@@ -161,7 +154,11 @@ pub async fn add_playlist_items(
 
     let item_ids: Vec<_> = ids_str.split(',').map(|s| s.to_string()).collect();
 
-    if let Err(_) = state.repo.add_items_to_playlist(&token.user_id, &playlist_id, &item_ids).await {
+    if let Err(_) = state
+        .repo
+        .add_items_to_playlist(&token.user_id, &playlist_id, &item_ids)
+        .await
+    {
         return apierror(StatusCode::INTERNAL_SERVER_ERROR, "Failed to add items").into_response();
     }
 
