@@ -850,6 +850,20 @@ pub fn make_jf_userdata(user_id: &str, item_id: &str, data: Option<&DbUserData>)
     ud
 }
 
+fn calc_bitrate(file_size: i64, metadata: &crate::collection::Metadata) -> Option<i32> {
+    if let Some(video_bitrate) = metadata.video_bitrate {
+        // Get it from the metadata.
+        video_bitrate.checked_add(metadata.audio_bitrate.unwrap_or(0))
+    } else if let Some(duration) = metadata.duration {
+        // Calculate it from the file size and duration.
+        let bps = (file_size as u64 / duration.as_secs()) * 8;
+        Some(std::cmp::min(bps, i32::MAX as u64) as i32)
+    } else {
+        // No bitrate or duration available.
+        None
+    }
+}
+
 /// make_media_source creates the media source info for an item.
 pub(crate) fn make_media_source(
     item_id: &str,
@@ -860,11 +874,8 @@ pub(crate) fn make_media_source(
     let container = file_name.rsplit('.').next().unwrap_or("mp4").to_string();
 
     let runtime_ticks = metadata.runtime_ticks();
-    let bitrate = metadata
-        .video_bitrate
-        .unwrap_or(0)
-        .checked_add(metadata.audio_bitrate.unwrap_or(0));
-    let media_streams = make_jf_media_streams(metadata);
+    let bitrate = calc_bitrate(file_size, metadata);
+    let media_streams = make_jf_media_streams(metadata, bitrate);
 
     vec![MediaSourceInfo {
         id: item_id.to_string(),
@@ -897,7 +908,7 @@ pub(crate) fn make_media_source(
 }
 
 /// make_jf_media_streams creates media stream information from metadata.
-fn make_jf_media_streams(metadata: &crate::collection::Metadata) -> Vec<MediaStream> {
+fn make_jf_media_streams(metadata: &crate::collection::Metadata, bitrate: Option<i32>) -> Vec<MediaStream> {
     // Video stream
     let video_codec = metadata
         .video_codec
@@ -932,7 +943,7 @@ fn make_jf_media_streams(metadata: &crate::collection::Metadata) -> Vec<MediaStr
         profile: Some("High".to_string()),
         is_anamorphic: Some(false),
         bit_depth: Some(8),
-        bit_rate: metadata.video_bitrate,
+        bit_rate: bitrate,
         audio_spatial_format: Some("None".to_string()),
         title: Some(video_title),
         display_title: Some(video_display_title),

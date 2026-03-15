@@ -117,15 +117,18 @@ struct StreamDetails {
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "lowercase")]
 struct VideoDetails {
+    bitrate: Option<i32>,
     codec: Option<String>,
     width: Option<i32>,
     height: Option<i32>,
+    duration: Option<f32>,
     durationinseconds: Option<i32>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default, rename_all = "lowercase")]
 struct AudioDetails {
+    bitrate: Option<i32>,
     codec: Option<String>,
     language: Option<String>,
     channels: Option<i32>,
@@ -208,20 +211,32 @@ impl From<EpisodeNfo> for Metadata {
     }
 }
 
+fn calc_duration(secs: Option<i32>, mins: Option<f32>) -> Option<std::time::Duration> {
+    if let Some(s) = secs {
+        Some(std::time::Duration::from_secs(s as u64))
+    } else if let Some(m) = mins {
+        Some(std::time::Duration::from_secs((m * 60.0) as u64))
+    } else {
+        None
+    }
+}
+
 fn apply_file_info(m: &mut Metadata, fi: FileInfo) {
     if let Some(sd) = fi.streamdetails {
         if let Some(v) = sd.video {
             m.video_codec = v.codec;
             m.video_width = v.width;
             m.video_height = v.height;
-            m.duration = v
-                .durationinseconds
-                .map(|d| std::time::Duration::from_secs(d as u64));
+            // If it's smaller than 500_0000, it's in kbps, otherwise it's in bps
+            m.video_bitrate = v.bitrate.map(|b| if b < 500_0000 { b * 1000 } else { b });
+            m.duration = calc_duration(v.durationinseconds, v.duration);
         }
         if let Some(a) = sd.audio {
             m.audio_codec = a.codec;
             m.audio_language = a.language;
             m.audio_channels = a.channels;
+            // If it's smaller than 100_000, it's in kbps, otherwise it's in bps
+            m.audio_bitrate = a.bitrate.map(|b| if b < 100_000 { b * 1000 } else { b });
         }
     }
 }
