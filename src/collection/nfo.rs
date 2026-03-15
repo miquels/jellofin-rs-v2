@@ -227,16 +227,16 @@ fn apply_file_info(m: &mut Metadata, fi: FileInfo) {
             m.video_codec = v.codec;
             m.video_width = v.width;
             m.video_height = v.height;
-            // If it's smaller than 500_0000, it's in kbps, otherwise it's in bps
-            m.video_bitrate = v.bitrate.map(|b| if b < 500_0000 { b * 1000 } else { b });
+            // If it's smaller than 250_000, it's in kbps, otherwise it's in bps
+            m.video_bitrate = v.bitrate.map(|b| if b < 250_000 { b * 1000 } else { b });
             m.duration = calc_duration(v.durationinseconds, v.duration);
         }
         if let Some(a) = sd.audio {
             m.audio_codec = a.codec;
             m.audio_language = a.language;
             m.audio_channels = a.channels;
-            // If it's smaller than 100_000, it's in kbps, otherwise it's in bps
-            m.audio_bitrate = a.bitrate.map(|b| if b < 100_000 { b * 1000 } else { b });
+            // If it's smaller than 25_000, it's in kbps, otherwise it's in bps
+            m.audio_bitrate = a.bitrate.map(|b| if b < 25_000 { b * 1000 } else { b });
         }
     }
 }
