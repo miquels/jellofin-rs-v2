@@ -167,12 +167,12 @@ pub async fn add_playlist_items(
 
 /// GET /Playlists/:playlist_id/Items/:item_id/Move/:new_index
 pub async fn move_playlist_item() -> impl IntoResponse {
-    StatusCode::NO_CONTENT
+    StatusCode::NOT_IMPLEMENTED
 }
 
 /// DELETE /Playlists/:playlist_id/Items
 pub async fn delete_playlist_items() -> impl IntoResponse {
-    StatusCode::NO_CONTENT
+    StatusCode::NOT_IMPLEMENTED
 }
 
 /// GET /Playlists/:playlist_id/Users
@@ -191,21 +191,7 @@ pub async fn get_playlist_users(Extension(token): Extension<AccessToken>) -> Jso
     })
 }
 
+#[derive(Deserialize, Debug)]
 pub struct PlaylistIdQuery {
     pub ids: Option<String>,
-}
-
-impl<'de> Deserialize<'de> for PlaylistIdQuery {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct RawIdQuery {
-            #[serde(rename = "Ids")]
-            ids: Option<String>,
-        }
-        let raw = RawIdQuery::deserialize(deserializer)?;
-        Ok(PlaylistIdQuery { ids: raw.ids })
-    }
 }
