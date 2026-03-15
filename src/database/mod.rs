@@ -1,7 +1,9 @@
 pub mod model;
 pub mod sqlite;
 
-pub use model::{AccessToken, DatabaseError, ImageMetadata, Item, Playlist, QuickConnectCode, Result, User, UserData, UserProperties};
+pub use model::{
+    AccessToken, DatabaseError, ImageMetadata, Item, Playlist, QuickConnectCode, Result, User, UserData, UserProperties,
+};
 pub use sqlite::SqliteRepository;
 
 use async_trait::async_trait;
@@ -16,7 +18,16 @@ pub trait PersonRepo {
 /// Database repo aggregates the repo interfaces.
 #[async_trait]
 pub trait Repository:
-    UserRepo + AccessTokenRepo + ItemRepo + UserDataRepo + PlaylistRepo + PersonRepo + QuickConnectRepo + ImageRepo + Send + Sync
+    UserRepo
+    + AccessTokenRepo
+    + ItemRepo
+    + UserDataRepo
+    + PlaylistRepo
+    + PersonRepo
+    + QuickConnectRepo
+    + ImageRepo
+    + Send
+    + Sync
 {
     /// Start background jobs for the repository.
     fn start_background_jobs(&self);
@@ -85,7 +96,12 @@ pub trait UserDataRepo {
     /// Get all favorite items of a user.
     async fn get_favorites(&self, user_id: &str) -> Result<Vec<String>>;
     /// GetRecentlyWatched returns up to `count` most recently watched items.
-    async fn get_recently_watched(&self, user_id: &str, include_fully_watched: bool, count: usize) -> Result<Vec<String>>;
+    async fn get_recently_watched(
+        &self,
+        user_id: &str,
+        include_fully_watched: bool,
+        count: usize,
+    ) -> Result<Vec<String>>;
     /// Update stores the play state details for a user and item.
     async fn update_user_data(&self, user_id: &str, item_id: &str, details: &UserData) -> Result<()>;
 }

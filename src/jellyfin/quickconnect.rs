@@ -25,7 +25,11 @@ pub async fn quick_connect_initiate(
     }
 
     let emby = parse_auth_header(&headers);
-    let device_id = emby.as_ref().map(|h| h.device_id.as_str()).unwrap_or("unknown").to_string();
+    let device_id = emby
+        .as_ref()
+        .map(|h| h.device_id.as_str())
+        .unwrap_or("unknown")
+        .to_string();
 
     // Generate 6-digit user-visible code and 32-char secret
     let code = {

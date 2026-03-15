@@ -31,10 +31,7 @@ pub async fn genres_all(
         state.collections.details().genres.clone()
     };
 
-    let items: Vec<BaseItemDto> = genres
-        .into_iter()
-        .map(|g| make_jfitem_genre(&state, &g))
-        .collect();
+    let items: Vec<BaseItemDto> = genres.into_iter().map(|g| make_jfitem_genre(&state, &g)).collect();
 
     let total_count = items.len() as i32;
 

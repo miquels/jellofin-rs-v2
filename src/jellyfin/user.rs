@@ -48,7 +48,7 @@ pub async fn authenticate_by_name(
 
     // Check if user exists or needs creation
     if let Some(db_user) = user.take() {
-         // Verify password
+        // Verify password
         if !verify(&request.pw, &db_user.password).unwrap_or(false) {
             return Err(StatusCode::UNAUTHORIZED);
         } else {
@@ -258,10 +258,7 @@ pub async fn users_update(
     Query(params): Query<std::collections::HashMap<String, String>>,
     Json(body): Json<serde_json::Value>,
 ) -> StatusCode {
-    let target_id = params
-        .get("userId")
-        .cloned()
-        .unwrap_or_else(|| token.user_id.clone());
+    let target_id = params.get("userId").cloned().unwrap_or_else(|| token.user_id.clone());
 
     let current = match state.repo.get_user_by_id(&token.user_id).await {
         Ok(u) => u,
@@ -347,10 +344,7 @@ pub async fn users_password(
     Query(params): Query<std::collections::HashMap<String, String>>,
     Json(body): Json<UserPasswordRequest>,
 ) -> StatusCode {
-    let target_id = params
-        .get("userId")
-        .cloned()
-        .unwrap_or_else(|| token.user_id.clone());
+    let target_id = params.get("userId").cloned().unwrap_or_else(|| token.user_id.clone());
 
     let current = match state.repo.get_user_by_id(&token.user_id).await {
         Ok(u) => u,

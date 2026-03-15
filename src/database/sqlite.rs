@@ -6,9 +6,15 @@ use tokio::sync::Mutex;
 use async_trait::async_trait;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 
+use super::model::{
+    AccessToken, DatabaseError, ImageMetadata, Item, Person, Playlist, QuickConnectCode, Result, User, UserData,
+    UserProperties,
+};
+use super::{
+    AccessTokenRepo, ImageRepo, ItemRepo, PersonRepo, PlaylistRepo, QuickConnectRepo, Repository, UserDataRepo,
+    UserRepo,
+};
 use crate::idhash::*;
-use super::model::{AccessToken, DatabaseError, ImageMetadata, Item, Person, Playlist, QuickConnectCode, Result, User, UserData, UserProperties};
-use super::{AccessTokenRepo, ImageRepo, ItemRepo, PersonRepo, PlaylistRepo, QuickConnectRepo, Repository, UserDataRepo, UserRepo};
 
 /// SQLite database repository implementation
 pub struct SqliteRepository {
@@ -245,12 +251,10 @@ impl Repository for SqliteRepository {
 impl SqliteRepository {
     /// Load user properties from the user_properties key-value table.
     async fn load_user_properties(&self, user_id: &str) -> Result<UserProperties> {
-        let rows = sqlx::query_as::<_, (String, String)>(
-            "SELECT key, value FROM user_properties WHERE userid = ?",
-        )
-        .bind(user_id)
-        .fetch_all(&self.pool)
-        .await?;
+        let rows = sqlx::query_as::<_, (String, String)>("SELECT key, value FROM user_properties WHERE userid = ?")
+            .bind(user_id)
+            .fetch_all(&self.pool)
+            .await?;
 
         let mut props = UserProperties::default();
         for (key, value) in rows {
@@ -594,7 +598,12 @@ impl UserDataRepo for SqliteRepository {
         Ok(favorites)
     }
 
-    async fn get_recently_watched(&self, user_id: &str, include_fully_watched: bool, count: usize) -> Result<Vec<String>> {
+    async fn get_recently_watched(
+        &self,
+        user_id: &str,
+        include_fully_watched: bool,
+        count: usize,
+    ) -> Result<Vec<String>> {
         let cache = self.user_data_cache.lock().await;
         let mut items: Vec<_> = cache
             .iter()
@@ -603,7 +612,11 @@ impl UserDataRepo for SqliteRepository {
 
         items.sort_by(|a, b| b.1.timestamp.cmp(&a.1.timestamp));
 
-        Ok(items.iter().take(count).map(|((_, item_id), _)| item_id.clone()).collect())
+        Ok(items
+            .iter()
+            .take(count)
+            .map(|((_, item_id), _)| item_id.clone())
+            .collect())
     }
 
     async fn update_user_data(&self, user_id: &str, item_id: &str, details: &UserData) -> Result<()> {
@@ -821,7 +834,7 @@ impl PersonRepo for SqliteRepository {
 impl QuickConnectRepo for SqliteRepository {
     async fn get_quick_connect_by_secret(&self, secret: &str) -> Result<QuickConnectCode> {
         let row = sqlx::query_as::<_, (String, String, String, bool, String, i64)>(
-            "SELECT userid, deviceid, secret, authorized, code, created FROM quickconnect WHERE secret = ?"
+            "SELECT userid, deviceid, secret, authorized, code, created FROM quickconnect WHERE secret = ?",
         )
         .bind(secret)
         .fetch_optional(&self.pool)
@@ -840,7 +853,7 @@ impl QuickConnectRepo for SqliteRepository {
 
     async fn get_quick_connect_by_code(&self, code: &str) -> Result<QuickConnectCode> {
         let row = sqlx::query_as::<_, (String, String, String, bool, String, i64)>(
-            "SELECT userid, deviceid, secret, authorized, code, created FROM quickconnect WHERE code = ?"
+            "SELECT userid, deviceid, secret, authorized, code, created FROM quickconnect WHERE code = ?",
         )
         .bind(code)
         .fetch_optional(&self.pool)
@@ -885,7 +898,7 @@ impl QuickConnectRepo for SqliteRepository {
 impl ImageRepo for SqliteRepository {
     async fn has_image(&self, item_id: &str, image_type: &str) -> Result<Option<ImageMetadata>> {
         let row = sqlx::query_as::<_, (String, i64, String, i64)>(
-            "SELECT mimetype, filesize, etag, updated FROM images WHERE itemid = ? AND type = ?"
+            "SELECT mimetype, filesize, etag, updated FROM images WHERE itemid = ? AND type = ?",
         )
         .bind(item_id)
         .bind(image_type)
@@ -902,7 +915,7 @@ impl ImageRepo for SqliteRepository {
 
     async fn get_image(&self, item_id: &str, image_type: &str) -> Result<(ImageMetadata, Vec<u8>)> {
         let row = sqlx::query_as::<_, (String, i64, String, i64, Vec<u8>)>(
-            "SELECT mimetype, filesize, etag, updated, data FROM images WHERE itemid = ? AND type = ?"
+            "SELECT mimetype, filesize, etag, updated, data FROM images WHERE itemid = ? AND type = ?",
         )
         .bind(item_id)
         .bind(image_type)

@@ -1,9 +1,13 @@
-use axum::{extract::{Request, State}, middleware::Next, response::Response};
+use crate::server::AppState;
+use axum::{
+    extract::{Request, State},
+    middleware::Next,
+    response::Response,
+};
 use std::net::IpAddr;
 use std::task::{Context, Poll};
 use tower::Service;
 use tracing::info;
-use crate::server::AppState;
 
 /// Tower service that normalizes request URIs before passing to inner service.
 /// Generic over body type so it works with both `axum::serve` (Body) and `axum_server` (Incoming).
@@ -101,11 +105,7 @@ fn normalize_uri<B>(req: &mut axum::http::Request<B>) {
     }
 }
 
-pub async fn log_request_middleware(
-    State(state): State<AppState>,
-    req: Request,
-    next: Next,
-) -> Response {
+pub async fn log_request_middleware(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let debug_logs = state.debug;
     let method = req.method().clone();
     let uri = req.uri().clone();
@@ -118,9 +118,7 @@ pub async fn log_request_middleware(
 
     // Log POST request body for debugging
     let (parts, body) = req.into_parts();
-    let bytes = axum::body::to_bytes(body, usize::MAX)
-        .await
-        .unwrap_or_default();
+    let bytes = axum::body::to_bytes(body, usize::MAX).await.unwrap_or_default();
 
     if debug_logs {
         info!("Request: {} {}", method, uri);
@@ -176,9 +174,7 @@ pub async fn log_request_middleware(
     if is_text {
         // Buffer text/json responses for debugging logging
         let (parts, body) = response.into_parts();
-        let bytes = axum::body::to_bytes(body, usize::MAX)
-            .await
-            .unwrap_or_default();
+        let bytes = axum::body::to_bytes(body, usize::MAX).await.unwrap_or_default();
         let length = bytes.len();
 
         let body_str_res = std::str::from_utf8(&bytes);
@@ -270,9 +266,7 @@ pub async fn add_cors_headers_middleware(req: Request, next: Next) -> Response {
     );
     headers.insert(
         "Cache-Control",
-        "public, max-age=86400, stale-while-revalidate=600"
-            .parse()
-            .unwrap(),
+        "public, max-age=86400, stale-while-revalidate=600".parse().unwrap(),
     );
 
     response
@@ -303,9 +297,7 @@ pub async fn etag_validation_middleware(req: Request, next: Next) -> Response {
                     if let Some(etag) = response.headers().get(axum::http::header::ETAG) {
                         headers.insert(axum::http::header::ETAG, etag.clone());
                     }
-                    if let Some(cache_control) =
-                        response.headers().get(axum::http::header::CACHE_CONTROL)
-                    {
+                    if let Some(cache_control) = response.headers().get(axum::http::header::CACHE_CONTROL) {
                         headers.insert(axum::http::header::CACHE_CONTROL, cache_control.clone());
                     }
                     if let Some(vary) = response.headers().get(axum::http::header::VARY) {
@@ -323,11 +315,7 @@ pub async fn etag_validation_middleware(req: Request, next: Next) -> Response {
 
 /// Middleware: reject requests whose source IP is not in `state.config.ip_allowlist`.
 /// No-op when the allowlist is empty.
-pub async fn ip_acl_middleware(
-    State(state): State<AppState>,
-    req: Request,
-    next: Next,
-) -> Response {
+pub async fn ip_acl_middleware(State(state): State<AppState>, req: Request, next: Next) -> Response {
     let allowlist = state.config.ip_allowlist();
     if allowlist.is_empty() {
         return next.run(req).await;
@@ -382,15 +370,27 @@ fn ip_matches(ip: IpAddr, entry: &str) -> bool {
         };
         match (ip, addr_str.trim().parse::<IpAddr>()) {
             (IpAddr::V4(client), Ok(IpAddr::V4(net))) => {
-                if prefix_len > 32 { return false; }
-                let mask = if prefix_len == 0 { 0u32 } else { u32::MAX << (32 - prefix_len) };
+                if prefix_len > 32 {
+                    return false;
+                }
+                let mask = if prefix_len == 0 {
+                    0u32
+                } else {
+                    u32::MAX << (32 - prefix_len)
+                };
                 (u32::from(client) & mask) == (u32::from(net) & mask)
             }
             (IpAddr::V6(client), Ok(IpAddr::V6(net))) => {
-                if prefix_len > 128 { return false; }
+                if prefix_len > 128 {
+                    return false;
+                }
                 let c = u128::from(client);
                 let n = u128::from(net);
-                let mask = if prefix_len == 0 { 0u128 } else { u128::MAX << (128 - prefix_len) };
+                let mask = if prefix_len == 0 {
+                    0u128
+                } else {
+                    u128::MAX << (128 - prefix_len)
+                };
                 (c & mask) == (n & mask)
             }
             _ => false,

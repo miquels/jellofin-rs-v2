@@ -1,8 +1,4 @@
-use axum::{
-    extract::State,
-    response::Json,
-    Extension,
-};
+use axum::{extract::State, response::Json, Extension};
 
 use super::jellyfin::JellyfinState;
 use super::types::*;

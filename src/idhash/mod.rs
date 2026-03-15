@@ -42,10 +42,10 @@ pub fn is_jf_collection_playlist_id(id: &str) -> bool {
 }
 
 pub fn is_jf_collection_id(id: &str) -> bool {
-    is_jf_root_id(id) ||
-        is_jf_collection_favorites_id(id) ||
-        is_jf_collection_playlist_id(id) ||
-        id.starts_with(ITEM_PREFIX_COLLECTION)
+    is_jf_root_id(id)
+        || is_jf_collection_favorites_id(id)
+        || is_jf_collection_playlist_id(id)
+        || id.starts_with(ITEM_PREFIX_COLLECTION)
 }
 
 pub fn is_jf_playlist_id(id: &str) -> bool {

@@ -3,9 +3,7 @@ use axum::{extract::Path, response::Json};
 use super::types::*;
 
 /// GET /DisplayPreferences/{id} - Get display preferences
-pub async fn display_preferences(
-    Path(id): Path<String>,
-) -> Json<DisplayPreferencesResponse> {
+pub async fn display_preferences(Path(id): Path<String>) -> Json<DisplayPreferencesResponse> {
     Json(DisplayPreferencesResponse {
         id,
         sort_by: "SortName".to_string(),

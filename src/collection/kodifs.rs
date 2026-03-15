@@ -226,7 +226,10 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
             super::parsefilename::parse_episode_name(file_name, season_no)
         {
             if parsed_season == season_no {
-                let episode_id = id_hash_prefix(ITEM_PREFIX_EPISODE, &format!("{}-s{}e{}", show_path, parsed_season, episode_no));
+                let episode_id = id_hash_prefix(
+                    ITEM_PREFIX_EPISODE,
+                    &format!("{}-s{}e{}", show_path, parsed_season, episode_no),
+                );
 
                 let episode = Episode {
                     id: episode_id,

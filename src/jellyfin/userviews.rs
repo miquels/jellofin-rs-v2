@@ -1,13 +1,13 @@
 use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
+use crate::database::model;
 use axum::{
     extract::{Path as AxumPath, Query, State},
     http::StatusCode,
     response::Json,
     Extension,
 };
-use crate::database::model;
 
 #[derive(serde::Deserialize)]
 pub struct UserViewsQuery {

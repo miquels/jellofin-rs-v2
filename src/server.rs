@@ -37,10 +37,7 @@ pub async fn run(config_path: String, debug: bool) -> Result<(), Box<dyn std::er
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
 
-    tracing_subscriber::fmt()
-        .with_env_filter(filter)
-        .json()
-        .init();
+    tracing_subscriber::fmt().with_env_filter(filter).json().init();
 
     info!("Using config file {}", config_path);
 
@@ -50,7 +47,7 @@ pub async fn run(config_path: String, debug: bool) -> Result<(), Box<dyn std::er
 
     // Initialize database
     let db_dir = config.dbdir.clone();
-    
+
     // Create directory if it doesn't exist
     if db_dir != "." {
         std::fs::create_dir_all(&db_dir).map_err(|e| format!("Failed to create db dir '{}': {}", db_dir, e))?;
@@ -126,7 +123,11 @@ pub async fn run(config_path: String, debug: bool) -> Result<(), Box<dyn std::er
         let app = middleware::NormalizePathService::new(router);
 
         let listener = tokio::net::TcpListener::bind(addr).await?;
-        axum::serve(listener, axum::ServiceExt::<axum::http::Request<axum::body::Body>>::into_make_service(app)).await?;
+        axum::serve(
+            listener,
+            axum::ServiceExt::<axum::http::Request<axum::body::Body>>::into_make_service(app),
+        )
+        .await?;
     }
 
     Ok(())
@@ -166,6 +167,7 @@ fn build_router(state: AppState) -> Router {
     };
 
     // Notflix API routes (no auth required)
+    #[rustfmt::skip]
     let notflix_routes = Router::new()
         .route("/api/collections", get(crate::notflix::collections_handler))
         .route("/api/collection/{id}", get(crate::notflix::collection_handler))
@@ -177,6 +179,7 @@ fn build_router(state: AppState) -> Router {
         .with_state(notflix_state);
 
     // Jellyfin public routes (no auth required)
+    #[rustfmt::skip]
     let jellyfin_public = Router::new()
         .route("/branding/configuration", get(crate::jellyfin::branding_configuration))
         .route("/branding/css", get(crate::jellyfin::branding_css))
@@ -189,8 +192,9 @@ fn build_router(state: AppState) -> Router {
         .route("/socket", get(crate::jellyfin::socket_handler))
         .route("/", get(crate::jellyfin::root_handler))
         .with_state(jellyfin_auth_state.clone());
-    
+
     // Jellyfin images (Public, uses JellyfinState)
+    #[rustfmt::skip]
     let jellyfin_images_public = Router::new()
         .route("/items/{item}/images/{type}", get(crate::jellyfin::get_item_image))
         .route("/items/{item}/images/{type}/{index}", get(crate::jellyfin::get_item_image_indexed))
@@ -201,6 +205,7 @@ fn build_router(state: AppState) -> Router {
         .with_state(jellyfin_state.clone());
 
     // Jellyfin system and user routes (some public, some protected)
+    #[rustfmt::skip]
     let jellyfin_api = Router::new()
         // Public system routes
         .route("/system/info/public", get(crate::jellyfin::system_info_public))
@@ -351,6 +356,7 @@ fn build_router(state: AppState) -> Router {
         .with_state(jellyfin_state);
 
     // Combine all routes
+    #[rustfmt::skip]
     Router::new()
         .route("/robots.txt", get(robots_handler))
         .merge(notflix_routes)
@@ -365,7 +371,6 @@ fn build_router(state: AppState) -> Router {
         .layer(CompressionLayer::new())
         .layer(TraceLayer::new_for_http())
 }
-
 
 /// Robots.txt handler
 async fn robots_handler() -> impl IntoResponse {

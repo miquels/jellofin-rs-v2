@@ -8,10 +8,10 @@ use chrono::Utc;
 
 use anyhow::anyhow;
 
-use super::util::item::{apply_query_items_filter, apply_query_item_sorting, apply_query_item_pagination};
 use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
+use super::util::item::{apply_query_item_pagination, apply_query_item_sorting, apply_query_items_filter};
 use crate::database::{AccessToken, UserData as DbUserData};
 use crate::idhash::*;
 
@@ -51,8 +51,7 @@ pub async fn items_latest(
     let parent_id = query_params.get("parentId").cloned();
 
     let mut qitems = if let Some(ref pid) = parent_id {
-        get_items_by_collection(&state, pid)
-            .map_err(|_| StatusCode::NOT_FOUND)?
+        get_items_by_collection(&state, pid).map_err(|_| StatusCode::NOT_FOUND)?
     } else {
         get_items_all(&state)
     };

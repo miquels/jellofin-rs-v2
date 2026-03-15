@@ -1,17 +1,20 @@
+use anyhow::{bail, Context, Result};
 use axum::{
     extract::{Path as AxumPath, Query, State},
     http::StatusCode,
     response::Json,
     Extension,
 };
-use anyhow::{bail, Context, Result};
 use std::collections::{HashMap, HashSet};
 use tracing::warn;
 
 use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
-use super::util::item::{apply_query_items_filter, apply_query_item_sorting, apply_query_item_pagination, apply_item_filter, apply_item_sorting, apply_item_pagination};
+use super::util::item::{
+    apply_item_filter, apply_item_pagination, apply_item_sorting, apply_query_item_pagination,
+    apply_query_item_sorting, apply_query_items_filter,
+};
 use crate::collection::Item;
 use crate::database::model;
 use crate::idhash::*;
@@ -29,10 +32,14 @@ pub async fn items_query(
     // or must fall back to the DTO path (virtual/hierarchical items).
     let use_query_pipeline = match &parent_id {
         None if recursive => true,
-        Some(pid) if is_jf_collection_id(pid)
-            && !is_jf_root_id(pid)
-            && !is_jf_collection_favorites_id(pid)
-            && !is_jf_collection_playlist_id(pid) => true,
+        Some(pid)
+            if is_jf_collection_id(pid)
+                && !is_jf_root_id(pid)
+                && !is_jf_collection_favorites_id(pid)
+                && !is_jf_collection_playlist_id(pid) =>
+        {
+            true
+        }
         Some(pid) if is_jf_genre_id(pid) => true,
         Some(pid) if is_jf_studio_id(pid) => true,
         _ => false,
@@ -43,8 +50,7 @@ pub async fn items_query(
         let mut qitems = match &parent_id {
             None => get_items_all(&state),
             Some(pid) if is_jf_collection_id(pid) => {
-                get_items_by_collection(&state, pid)
-                    .map_err(|_| StatusCode::NOT_FOUND)?
+                get_items_by_collection(&state, pid).map_err(|_| StatusCode::NOT_FOUND)?
             }
             Some(pid) if is_jf_genre_id(pid) => get_items_by_genre(&state, pid),
             Some(pid) if is_jf_studio_id(pid) => get_items_by_studio(&state, pid),
@@ -171,11 +177,7 @@ pub async fn users_item_userdata(
     AxumPath(params): AxumPath<(String, String)>,
 ) -> Json<UserItemDataDto> {
     let item_id = &params.1;
-    let playstate = state
-        .repo
-        .get_user_data(&token.user_id, item_id)
-        .await
-        .ok();
+    let playstate = state.repo.get_user_data(&token.user_id, item_id).await.ok();
 
     Json(make_jf_userdata(&token.user_id, item_id, playstate.as_ref()))
 }
@@ -186,11 +188,7 @@ pub async fn users_item_userdata_simple(
     State(state): State<JellyfinState>,
     AxumPath(item_id): AxumPath<String>,
 ) -> Json<UserItemDataDto> {
-    let playstate = state
-        .repo
-        .get_user_data(&token.user_id, &item_id)
-        .await
-        .ok();
+    let playstate = state.repo.get_user_data(&token.user_id, &item_id).await.ok();
 
     Json(make_jf_userdata(&token.user_id, &item_id, playstate.as_ref()))
 }
@@ -317,10 +315,7 @@ fn apply_fields_filter(items: &mut Vec<BaseItemDto>, query_params: &HashMap<Stri
 }
 
 /// Collect items matching a genre ID across all collections.
-fn get_items_by_genre(
-    state: &JellyfinState,
-    genre_id: &str,
-) -> Vec<Item> {
+fn get_items_by_genre(state: &JellyfinState, genre_id: &str) -> Vec<Item> {
     let mut items = Vec::new();
     for c in state.collections.get_collections() {
         for item in c.items {
@@ -337,10 +332,7 @@ fn get_items_by_genre(
 }
 
 /// Collect items matching a studio ID across all collections.
-fn get_items_by_studio(
-    state: &JellyfinState,
-    studio_id: &str,
-) -> Vec<Item> {
+fn get_items_by_studio(state: &JellyfinState, studio_id: &str) -> Vec<Item> {
     let mut items = Vec::new();
     for c in state.collections.get_collections() {
         for item in c.items {
@@ -424,7 +416,11 @@ async fn make_jfitem_favorites_overview(state: &JellyfinState, user_id: &str) ->
 }
 
 /// make_jfitem_playlist_itemlist creates an item list of one playlist of the user.
-async fn make_jfitem_playlist_itemlist(state: &JellyfinState, user_id: &str, playlist_id: &str) -> anyhow::Result<Vec<BaseItemDto>> {
+async fn make_jfitem_playlist_itemlist(
+    state: &JellyfinState,
+    user_id: &str,
+    playlist_id: &str,
+) -> anyhow::Result<Vec<BaseItemDto>> {
     let playlist = state.repo.get_playlist(user_id, playlist_id).await?;
     let mut items = Vec::new();
     for item_id in &playlist.item_ids {

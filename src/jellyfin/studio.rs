@@ -30,10 +30,7 @@ pub async fn studios_all(
         state.collections.details().studios.clone()
     };
 
-    let items: Vec<BaseItemDto> = studios
-        .into_iter()
-        .map(|s| make_jfitem_studio(&state, &s))
-        .collect();
+    let items: Vec<BaseItemDto> = studios.into_iter().map(|s| make_jfitem_studio(&state, &s)).collect();
 
     let total_count = items.len() as i32;
 

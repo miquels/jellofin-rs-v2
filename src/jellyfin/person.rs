@@ -66,10 +66,7 @@ fn make_jf_item_person(person: &crate::database::model::Person, server_id: &str)
 
     if !person.poster_url.is_empty() {
         let mut image_tags = HashMap::new();
-        image_tags.insert(
-            "Primary".to_string(),
-            person.poster_url.clone(),
-        );
+        image_tags.insert("Primary".to_string(), person.poster_url.clone());
         dto.image_tags = image_tags;
     }
 

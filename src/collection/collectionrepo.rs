@@ -295,7 +295,9 @@ impl CollectionRepo {
         };
 
         let source_genres: HashSet<&str> = source_meta.genres.iter().map(|s| s.as_str()).collect();
-        let source_people: HashSet<&str> = source_meta.actors.iter()
+        let source_people: HashSet<&str> = source_meta
+            .actors
+            .iter()
             .chain(source_meta.directors.iter())
             .map(|s| s.as_str())
             .collect();
@@ -320,8 +322,14 @@ impl CollectionRepo {
                 if cid == source_id {
                     return None;
                 }
-                let genre_score = meta.genres.iter().filter(|g| source_genres.contains(g.as_str())).count();
-                let people_score = meta.actors.iter()
+                let genre_score = meta
+                    .genres
+                    .iter()
+                    .filter(|g| source_genres.contains(g.as_str()))
+                    .count();
+                let people_score = meta
+                    .actors
+                    .iter()
                     .chain(meta.directors.iter())
                     .filter(|p| source_people.contains(p.as_str()))
                     .count();

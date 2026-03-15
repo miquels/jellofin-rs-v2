@@ -6,10 +6,10 @@ use axum::{
 };
 use std::collections::HashMap;
 
-use super::util::item::{apply_query_items_filter, apply_query_item_sorting, apply_query_item_pagination};
 use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
+use super::util::item::{apply_query_item_pagination, apply_query_item_sorting, apply_query_items_filter};
 use crate::database::model;
 use crate::idhash::{is_jf_collection_id, is_jf_collection_playlist_id};
 
@@ -41,8 +41,7 @@ pub async fn search_hints(
     });
 
     let mut qitems = if let Some(ref scid) = search_collection_id {
-        get_items_by_collection(&state, scid)
-            .map_err(|_| StatusCode::NOT_FOUND)?
+        get_items_by_collection(&state, scid).map_err(|_| StatusCode::NOT_FOUND)?
     } else {
         get_items_all(&state)
     };

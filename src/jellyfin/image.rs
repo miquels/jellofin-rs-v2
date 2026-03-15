@@ -109,20 +109,13 @@ async fn get_image_common(
         }
     }
 
-    let image_path = find_image_path(&state.collections, &item_id, &image_type)
-        .ok_or_else(|| {
-            warn!(
-                "Image not found: item_id={}, image_type={}",
-                item_id, image_type
-            );
-            StatusCode::NOT_FOUND
-        })?;
+    let image_path = find_image_path(&state.collections, &item_id, &image_type).ok_or_else(|| {
+        warn!("Image not found: item_id={}, image_type={}", item_id, image_type);
+        StatusCode::NOT_FOUND
+    })?;
 
     // Determine quality: strictly following user suggestion but falling back to path type if param unavailable
-    let type_to_check = params
-        .image_type
-        .as_deref()
-        .unwrap_or(image_type.as_str());
+    let type_to_check = params.image_type.as_deref().unwrap_or(image_type.as_str());
 
     // Config defaults
     let quality = if params.quality.is_some() {
@@ -135,22 +128,14 @@ async fn get_image_common(
     };
 
     // Resolve width/height from various params
-    let width = params
-        .width
-        .or(params.max_width)
-        .or(params.fill_width);
-    let height = params
-        .height
-        .or(params.max_height)
-        .or(params.fill_height);
+    let width = params.width.or(params.max_width).or(params.fill_width);
+    let height = params.height.or(params.max_height).or(params.fill_height);
 
-    let serve_path = state
-        .image_resizer
-        .resize_image(&image_path, width, height, quality);
+    let serve_path = state.image_resizer.resize_image(&image_path, width, height, quality);
 
     // Ensure the file exists
     if !serve_path.exists() {
-         return Err(StatusCode::NOT_FOUND);
+        return Err(StatusCode::NOT_FOUND);
     }
 
     // Use ServeFile for proper ETag and Range header support
@@ -223,10 +208,7 @@ fn find_image_path(collections: &CollectionRepo, item_id: &str, image_type: &str
     if path.exists() {
         Some(path)
     } else {
-        warn!(
-            "find_image_path: file does not exist: {}",
-            path.display()
-        );
+        warn!("find_image_path: file does not exist: {}", path.display());
         None
     }
 }
@@ -307,10 +289,7 @@ pub async fn post_user_image(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> StatusCode {
-    let user_id = params
-        .get("userId")
-        .cloned()
-        .unwrap_or_else(|| token.user_id.clone());
+    let user_id = params.get("userId").cloned().unwrap_or_else(|| token.user_id.clone());
 
     let mime_type = headers
         .get(axum::http::header::CONTENT_TYPE)
@@ -338,10 +317,7 @@ pub async fn delete_user_image(
     State(state): State<JellyfinState>,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> StatusCode {
-    let user_id = params
-        .get("userId")
-        .cloned()
-        .unwrap_or_else(|| token.user_id.clone());
+    let user_id = params.get("userId").cloned().unwrap_or_else(|| token.user_id.clone());
 
     match state.repo.delete_image(&user_id, "Primary").await {
         Ok(_) => StatusCode::NO_CONTENT,

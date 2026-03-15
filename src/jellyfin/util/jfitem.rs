@@ -34,9 +34,7 @@ const TICKS_TO_SECONDS: i64 = 10_000_000;
 
 /// Check query params to determine if user_data needs to be loaded for filtering/sorting.
 pub fn needs_user_data(query_params: &HashMap<String, String>) -> bool {
-    if query_params.contains_key("isPlayed")
-        || query_params.contains_key("isFavorite")
-    {
+    if query_params.contains_key("isPlayed") || query_params.contains_key("isFavorite") {
         return true;
     }
     if let Some(filters) = query_params.get("filters") {
@@ -58,11 +56,7 @@ pub fn needs_user_data(query_params: &HashMap<String, String>) -> bool {
 }
 
 /// Load user_data from the database for each Item that doesn't already have it.
-pub async fn load_user_data(
-    items: &mut [Item],
-    state: &JellyfinState,
-    user_id: &str,
-) {
+pub async fn load_user_data(items: &mut [Item], state: &JellyfinState, user_id: &str) {
     for item in items.iter_mut() {
         if item.get_user_data().is_none() {
             if let Ok(ud) = state.repo.get_user_data(user_id, &item.id()).await {
@@ -73,10 +67,7 @@ pub async fn load_user_data(
 }
 
 /// Collect all items from a specific collection.
-pub fn get_items_by_collection(
-    state: &JellyfinState,
-    collection_id: &str,
-) -> Result<Vec<Item>> {
+pub fn get_items_by_collection(state: &JellyfinState, collection_id: &str) -> Result<Vec<Item>> {
     let c = state
         .collections
         .get_collection(collection_id)
@@ -94,11 +85,7 @@ pub fn get_items_all(state: &JellyfinState) -> Vec<Item> {
 }
 
 /// Convert a slice of Items to BaseItemDtos.
-pub async fn convert_items_to_dtos(
-    items: &[Item],
-    state: &JellyfinState,
-    user_id: &str,
-) -> Vec<BaseItemDto> {
+pub async fn convert_items_to_dtos(items: &[Item], state: &JellyfinState, user_id: &str) -> Vec<BaseItemDto> {
     let mut dtos = Vec::with_capacity(items.len());
     for item in items {
         match make_jfitem(state, user_id, item).await {
@@ -342,11 +329,7 @@ pub async fn make_jfitem_playlist_overview(state: &JellyfinState, user_id: &str)
 // ---------------------------------------------------------------------------
 
 /// make_jfitem_movie creates a movie item.
-async fn make_jfitem_movie(
-    state: &JellyfinState,
-    user_id: &str,
-    movie: &Movie,
-) -> Result<JFItem> {
+async fn make_jfitem_movie(state: &JellyfinState, user_id: &str, movie: &Movie) -> Result<JFItem> {
     let genres = movie.metadata.genres.clone();
     let genre_items = make_jf_genre_items(&genres);
 
@@ -363,7 +346,10 @@ async fn make_jfitem_movie(
     let premiere_date = movie.metadata.premiered.unwrap_or(movie.created);
 
     let media_sources = make_media_source(&movie.id, &movie.file_name, movie.file_size, &movie.metadata);
-    let media_streams = media_sources.first().map(|s| s.media_streams.clone()).unwrap_or_default();
+    let media_streams = media_sources
+        .first()
+        .map(|s| s.media_streams.clone())
+        .unwrap_or_default();
 
     // Image tags
     let mut image_tags = HashMap::new();
@@ -426,11 +412,7 @@ async fn make_jfitem_movie(
 }
 
 /// make_jfitem_show creates a show item.
-async fn make_jfitem_show(
-    state: &JellyfinState,
-    user_id: &str,
-    show: &Show,
-) -> Result<JFItem> {
+async fn make_jfitem_show(state: &JellyfinState, user_id: &str, show: &Show) -> Result<JFItem> {
     let genres = show.metadata.genres.clone();
     let genre_items = make_jf_genre_items(&genres);
 
@@ -785,7 +767,7 @@ fn make_jf_studio_pairs(studios: &[String]) -> Vec<NameGuidPair> {
         .iter()
         .map(|s| NameGuidPair {
             name: s.clone(),
-            id: id_hash_prefix(ITEM_PREFIX_STUDIO, s)
+            id: id_hash_prefix(ITEM_PREFIX_STUDIO, s),
         })
         .collect()
 }

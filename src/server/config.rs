@@ -60,8 +60,6 @@ pub struct ListenConfig {
     pub tls_key: Option<String>,
 }
 
-
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CollectionConfig {
     pub id: String,

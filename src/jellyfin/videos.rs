@@ -38,14 +38,14 @@ pub async fn video_stream_handler(
     };
 
     let path_str = match &item {
-         crate::collection::Item::Movie(m) => &m.path,
-         crate::collection::Item::Show(s) => &s.path,
-         crate::collection::Item::Season(_) => return StatusCode::NOT_FOUND.into_response(),
-         crate::collection::Item::Episode(e) => &e.path,
+        crate::collection::Item::Movie(m) => &m.path,
+        crate::collection::Item::Show(s) => &s.path,
+        crate::collection::Item::Season(_) => return StatusCode::NOT_FOUND.into_response(),
+        crate::collection::Item::Episode(e) => &e.path,
     };
 
     if filename.is_empty() {
-         return StatusCode::NOT_FOUND.into_response();
+        return StatusCode::NOT_FOUND.into_response();
     }
 
     // Construct full path

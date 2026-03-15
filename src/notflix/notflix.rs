@@ -189,8 +189,13 @@ pub async fn data_handler(
     let base_path = std::path::Path::new(&collection.directory);
     let file_path = base_path.join(path_string.trim_start_matches('/'));
     let file_path_str = file_path.to_str().unwrap_or_default();
-    
-    tracing::debug!("Data handler: source={} path_string={} -> resolved={}", source, path_string, file_path_str);
+
+    tracing::debug!(
+        "Data handler: source={} path_string={} -> resolved={}",
+        source,
+        path_string,
+        file_path_str
+    );
 
     let ext = file_path.extension().and_then(|s| s.to_str()).unwrap_or("");
     if ext == "srt" || ext == "vtt" {
@@ -198,9 +203,18 @@ pub async fn data_handler(
     }
 
     // Parse resize parameters
-    let width = params.get("width").or_else(|| params.get("w")).and_then(|v| v.parse().ok());
-    let height = params.get("height").or_else(|| params.get("h")).and_then(|v| v.parse().ok());
-    let quality = params.get("quality").or_else(|| params.get("q")).and_then(|v| v.parse().ok());
+    let width = params
+        .get("width")
+        .or_else(|| params.get("w"))
+        .and_then(|v| v.parse().ok());
+    let height = params
+        .get("height")
+        .or_else(|| params.get("h"))
+        .and_then(|v| v.parse().ok());
+    let quality = params
+        .get("quality")
+        .or_else(|| params.get("q"))
+        .and_then(|v| v.parse().ok());
 
     // Try image resizer
     let resized_path = state
@@ -495,8 +509,5 @@ fn copy_episode(episode: &crate::collection::Episode, do_nfo: bool) -> Episode {
 
 /// Helper: URL-escape a path
 fn escape_path(path: &str) -> String {
-    path.split('/')
-        .map(|part| encode(part))
-        .collect::<Vec<_>>()
-        .join("/")
+    path.split('/').map(|part| encode(part)).collect::<Vec<_>>().join("/")
 }

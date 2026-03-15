@@ -25,10 +25,7 @@ pub async fn system_info(State(state): State<JellyfinState>) -> Json<SystemInfo>
 }
 
 /// GET /System/Info/Public - Get public system information
-pub async fn system_info_public(
-    headers: HeaderMap,
-    State(state): State<JellyfinState>,
-) -> Response {
+pub async fn system_info_public(headers: HeaderMap, State(state): State<JellyfinState>) -> Response {
     // Block desktop and iOS Jellyfin apps — they depend on web assets we don't serve
     if let Some(ua) = headers.get(axum::http::header::USER_AGENT) {
         let ua = ua.to_str().unwrap_or("");

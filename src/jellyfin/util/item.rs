@@ -3,9 +3,9 @@ use rand::prelude::*;
 use std::collections::HashMap;
 use tracing::warn;
 
+use super::types::*;
 use crate::collection::Item;
 use crate::idhash::*;
-use super::types::*;
 
 // ---------------------------------------------------------------------------
 // Item-based filtering (operates on native types, not BaseItemDto)
@@ -19,7 +19,6 @@ pub(crate) fn apply_query_items_filter(items: Vec<Item>, query_params: &HashMap<
 }
 
 fn apply_query_item_filter(item: &Item, qp: &HashMap<String, String>) -> bool {
-
     // includeItemTypes
     if let Some(types) = qp.get("includeItemTypes") {
         let type_list: Vec<&str> = types.split(',').collect();
@@ -286,10 +285,7 @@ fn apply_query_item_filter(item: &Item, qp: &HashMap<String, String>) -> bool {
 // Item-based sorting
 // ---------------------------------------------------------------------------
 
-pub(crate) fn apply_query_item_sorting(
-    items: &mut Vec<Item>,
-    query_params: &HashMap<String, String>,
-) {
+pub(crate) fn apply_query_item_sorting(items: &mut Vec<Item>, query_params: &HashMap<String, String>) {
     let sort_by_raw = match query_params.get("sortBy") {
         Some(s) if !s.is_empty() => s.clone(),
         _ => return,
@@ -345,9 +341,7 @@ pub(crate) fn apply_query_item_sorting(
                     }
                 }
                 "runtime" => a.run_time_ticks().cmp(&b.run_time_ticks()),
-                "name" | "seriessortname" | "sortname" | "default" => {
-                    a.sort_name().cmp(b.sort_name())
-                }
+                "name" | "seriessortname" | "sortname" | "default" => a.sort_name().cmp(b.sort_name()),
                 other => {
                     warn!("apply_query_item_sorting: unknown sort field: {}", other);
                     std::cmp::Ordering::Equal
