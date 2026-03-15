@@ -48,10 +48,10 @@ pub async fn items_latest(
     let parent_id = query_params.get("parentId").cloned();
 
     let mut qitems = if let Some(ref pid) = parent_id {
-        get_query_items_by_collection(&state, pid)
+        get_items_by_collection(&state, pid)
             .map_err(|_| StatusCode::NOT_FOUND)?
     } else {
-        get_query_items_all(&state)
+        get_items_all(&state)
     };
 
     if needs_user_data(&query_params) {
@@ -74,7 +74,7 @@ pub async fn items_latest(
     }
 
     let (qitems, _) = apply_query_item_pagination(qitems, &qp);
-    let items = convert_query_items_to_dtos(&qitems, &state, &token.user_id).await;
+    let items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;
     Ok(Json(items))
 }
 

@@ -28,6 +28,7 @@ pub fn build_movies(collection: &mut Collection, _scan_interval: Duration) {
         let path = entry.path();
         if let Some(mut movie) = scan_movie_directory(path, &collection.directory) {
             movie.base_url = format!("/data/{}", collection.id);
+            movie.collection_id = collection.id.clone();
             movies.push(Item::Movie(movie));
         }
     }
@@ -60,7 +61,9 @@ pub fn build_shows(collection: &mut Collection, _scan_interval: Duration) {
 
         if let Some(mut show) = scan_show_directory(path, &collection.directory) {
             show.base_url = format!("/data/{}", collection.id);
-            shows.push(Item::Show(show));
+            let mut item = Item::Show(show);
+            item.set_collection_id(collection.id.clone());
+            shows.push(item);
         }
     }
 
@@ -84,6 +87,8 @@ fn scan_movie_directory(path: &Path, collection_root: &str) -> Option<Movie> {
 
     let movie = Movie {
         id,
+        collection_id: String::new(),
+        user_data: None,
         name: dir_name.to_string(),
         sort_name: super::item::make_sort_name(dir_name),
         path: relative_path,
@@ -158,6 +163,8 @@ fn scan_show_directory(path: &Path, collection_root: &str) -> Option<Show> {
 
     let show = Show {
         id,
+        collection_id: String::new(),
+        user_data: None,
         name: dir_name.to_string(),
         sort_name: super::item::make_sort_name(dir_name),
         path: relative_path,
@@ -223,6 +230,8 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
 
                 let episode = Episode {
                     id: episode_id,
+                    collection_id: String::new(),
+                    user_data: None,
                     name: ep_name.clone(),
                     path: show_path.to_string(),
                     sort_name: ep_name,
@@ -279,6 +288,8 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
 
     let season = Season {
         id: season_id,
+        collection_id: String::new(),
+        user_data: None,
         name: season_name,
         path: show_path.to_string(),
         season_no,

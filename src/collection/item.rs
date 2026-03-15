@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 use std::time::Duration;
 
 use super::metadata::Metadata;
+use crate::database::UserData as DbUserData;
 
 /// Subtitle file with language and path
 #[derive(Debug, Clone)]
@@ -19,6 +20,10 @@ pub type Subtitles = Vec<Subs>;
 pub struct Movie {
     /// id is the unique identifier for the movie. Typically Idhash() of name.
     pub id: String,
+    /// collection_id is the ID of the collection this movie belongs to.
+    pub collection_id: String,
+    /// user_data is per-request user play state (populated on cloned copies, not stored).
+    pub user_data: Option<Box<DbUserData>>,
     /// name is the name of the movie, e.g. "Casablanca (1949)"
     pub name: String,
     /// sort_name is used to sort on.
@@ -62,6 +67,8 @@ impl Movie {
 pub struct Show {
     /// id is the unique identifier of the show. Typically Idhash() of name.
     pub id: String,
+    pub collection_id: String,
+    pub user_data: Option<Box<DbUserData>>,
     /// name is the display name of the show, e.g. "Casablanca"
     pub name: String,
     /// sort_name is used to sort on.
@@ -111,6 +118,8 @@ impl Show {
 pub struct Season {
     /// id is the unique identifier of the season.
     pub id: String,
+    pub collection_id: String,
+    pub user_data: Option<Box<DbUserData>>,
     /// name is the human-readable name of the season.
     pub name: String,
     /// path is the directory to the show(!), relative to collection root. (e.g. Casablanca)
@@ -152,6 +161,8 @@ impl Season {
 pub struct Episode {
     /// id is the unique identifier of the episode. Typically Idhash() of name.
     pub id: String,
+    pub collection_id: String,
+    pub user_data: Option<Box<DbUserData>>,
     /// name is the human-readable name of the episode.
     pub name: String,
     /// path is the directory of the show, relative to collection root. (e.g. Casablanca)
@@ -203,6 +214,50 @@ impl Item {
             Item::Show(s) => s.id.clone(),
             Item::Season(s) => s.id.clone(),
             Item::Episode(e) => e.id.clone(),
+        }
+    }
+
+    pub fn collection_id(&self) -> &str {
+        match self {
+            Item::Movie(m) => &m.collection_id,
+            Item::Show(s) => &s.collection_id,
+            Item::Season(s) => &s.collection_id,
+            Item::Episode(e) => &e.collection_id,
+        }
+    }
+
+    pub fn set_collection_id(&mut self, id: String) {
+        match self {
+            Item::Movie(m) => m.collection_id = id,
+            Item::Show(s) => {
+                s.collection_id = id.clone();
+                for season in &mut s.seasons {
+                    season.collection_id = id.clone();
+                    for episode in &mut season.episodes {
+                        episode.collection_id = id.clone();
+                    }
+                }
+            }
+            Item::Season(s) => s.collection_id = id,
+            Item::Episode(e) => e.collection_id = id,
+        }
+    }
+
+    pub fn get_user_data(&self) -> Option<&DbUserData> {
+        match self {
+            Item::Movie(m) => m.user_data.as_deref(),
+            Item::Show(s) => s.user_data.as_deref(),
+            Item::Season(s) => s.user_data.as_deref(),
+            Item::Episode(e) => e.user_data.as_deref(),
+        }
+    }
+
+    pub fn set_user_data(&mut self, ud: DbUserData) {
+        match self {
+            Item::Movie(m) => m.user_data = Some(Box::new(ud)),
+            Item::Show(s) => s.user_data = Some(Box::new(ud)),
+            Item::Season(s) => s.user_data = Some(Box::new(ud)),
+            Item::Episode(e) => e.user_data = Some(Box::new(ud)),
         }
     }
 

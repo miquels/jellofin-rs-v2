@@ -128,15 +128,10 @@ pub async fn items_similar(
         .unwrap_or(10);
     let similar_ids = state.collections.similar(&collection.id, &item.id(), limit).await;
 
-    // Collect similar items as QueryItems
-    let mut qitems: Vec<QueryItem> = Vec::new();
+    let mut qitems: Vec<crate::collection::Item> = Vec::new();
     for id in similar_ids {
-        if let Some((c, item)) = state.collections.get_item_by_id(&id) {
-            qitems.push(QueryItem {
-                item,
-                collection_id: c.id.clone(),
-                user_data: None,
-            });
+        if let Some((_, item)) = state.collections.get_item_by_id(&id) {
+            qitems.push(item);
         }
     }
 
@@ -149,7 +144,7 @@ pub async fn items_similar(
     let mut qitems = qitems;
     apply_query_item_sorting(&mut qitems, &query_params);
 
-    let items = convert_query_items_to_dtos(&qitems, &state, &token.user_id).await;
+    let items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;
 
     Ok(Json(UsersItemsSimilarResponse {
         items,

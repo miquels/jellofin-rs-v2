@@ -124,8 +124,8 @@ pub async fn get_playlist_items(
     let mut items = Vec::new();
 
     for item_id in playlist.item_ids {
-        if let Some((collection, item)) = state.collections.get_item_by_id(&item_id) {
-            if let Ok(jfitem) = make_jfitem(&state, &token.user_id, &item, &collection.id).await {
+        if let Some((_, item)) = state.collections.get_item_by_id(&item_id) {
+            if let Ok(jfitem) = make_jfitem(&state, &token.user_id, &item).await {
                 items.push(jfitem);
             }
         }

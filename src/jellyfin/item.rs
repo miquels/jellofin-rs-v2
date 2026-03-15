@@ -12,6 +12,7 @@ use tracing::warn;
 use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
+use crate::collection::Item;
 use crate::database::model;
 use crate::idhash::*;
 
@@ -24,7 +25,7 @@ pub async fn items_query(
     let parent_id = query_params.get("parentId").cloned();
     let recursive = query_params.get("recursive").map(|v| v == "true").unwrap_or(false);
 
-    // Determine if this request can use the QueryItem pipeline (native items)
+    // Determine if this request can use the Item pipeline (native items)
     // or must fall back to the DTO path (virtual/hierarchical items).
     let use_query_pipeline = match &parent_id {
         None if recursive => true,
@@ -38,15 +39,15 @@ pub async fn items_query(
     };
 
     if use_query_pipeline {
-        // --- QueryItem pipeline: filter/sort/paginate on native types, convert only the page ---
+        // --- Item pipeline: filter/sort/paginate on native types, convert only the page ---
         let mut qitems = match &parent_id {
-            None => get_query_items_all(&state),
+            None => get_items_all(&state),
             Some(pid) if is_jf_collection_id(pid) => {
-                get_query_items_by_collection(&state, pid)
+                get_items_by_collection(&state, pid)
                     .map_err(|_| StatusCode::NOT_FOUND)?
             }
-            Some(pid) if is_jf_genre_id(pid) => get_query_items_by_genre(&state, pid),
-            Some(pid) if is_jf_studio_id(pid) => get_query_items_by_studio(&state, pid),
+            Some(pid) if is_jf_genre_id(pid) => get_items_by_genre(&state, pid),
+            Some(pid) if is_jf_studio_id(pid) => get_items_by_studio(&state, pid),
             _ => unreachable!(),
         };
 
@@ -62,7 +63,7 @@ pub async fn items_query(
         let (qitems, start_index) = apply_query_item_pagination(qitems, &query_params);
 
         // Convert only the final page to BaseItemDto
-        let mut items = convert_query_items_to_dtos(&qitems, &state, &token.user_id).await;
+        let mut items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;
         apply_fields_filter(&mut items, &query_params);
 
         Ok(Json(UserItemsResponse {
@@ -113,15 +114,10 @@ pub async fn items_resume(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Collect as QueryItems
-    let mut qitems: Vec<QueryItem> = Vec::new();
+    let mut qitems: Vec<Item> = Vec::new();
     for id in resume_ids {
-        if let Some((c, item)) = state.collections.get_item_by_id(&id) {
-            qitems.push(QueryItem {
-                item,
-                collection_id: c.id.clone(),
-                user_data: None,
-            });
+        if let Some((_, item)) = state.collections.get_item_by_id(&id) {
+            qitems.push(item);
         }
     }
 
@@ -134,7 +130,7 @@ pub async fn items_resume(
     apply_query_item_sorting(&mut qitems, &query_params);
     let (qitems, start_index) = apply_query_item_pagination(qitems, &query_params);
 
-    let items = convert_query_items_to_dtos(&qitems, &state, &token.user_id).await;
+    let items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;
 
     Ok(Json(UsersItemsResumeResponse {
         items,
@@ -715,18 +711,17 @@ fn apply_fields_filter(items: &mut Vec<BaseItemDto>, query_params: &HashMap<Stri
 }
 
 // ---------------------------------------------------------------------------
-// QueryItem-based filtering (operates on native types, not BaseItemDto)
+// Item-based filtering (operates on native types, not BaseItemDto)
 // ---------------------------------------------------------------------------
 
-pub(crate) fn apply_query_items_filter(items: Vec<QueryItem>, query_params: &HashMap<String, String>) -> Vec<QueryItem> {
+pub(crate) fn apply_query_items_filter(items: Vec<Item>, query_params: &HashMap<String, String>) -> Vec<Item> {
     items
         .into_iter()
-        .filter(|qi| apply_query_item_filter(qi, query_params))
+        .filter(|item| apply_query_item_filter(item, query_params))
         .collect()
 }
 
-fn apply_query_item_filter(qi: &QueryItem, qp: &HashMap<String, String>) -> bool {
-    let item = &qi.item;
+fn apply_query_item_filter(item: &Item, qp: &HashMap<String, String>) -> bool {
 
     // includeItemTypes
     if let Some(types) = qp.get("includeItemTypes") {
@@ -948,7 +943,7 @@ fn apply_query_item_filter(qi: &QueryItem, qp: &HashMap<String, String>) -> bool
     // isPlayed (requires user_data)
     if let Some(played_str) = qp.get("isPlayed") {
         let want_played = played_str.eq_ignore_ascii_case("true");
-        let is_played = qi.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
+        let is_played = item.get_user_data().map(|ud| ud.played).unwrap_or(false);
         if want_played != is_played {
             return false;
         }
@@ -957,7 +952,7 @@ fn apply_query_item_filter(qi: &QueryItem, qp: &HashMap<String, String>) -> bool
     // isFavorite (requires user_data)
     if let Some(fav_str) = qp.get("isFavorite") {
         let want_fav = fav_str.eq_ignore_ascii_case("true");
-        let is_fav = qi.user_data.as_ref().map(|ud| ud.favorite).unwrap_or(false);
+        let is_fav = item.get_user_data().map(|ud| ud.favorite).unwrap_or(false);
         if want_fav != is_fav {
             return false;
         }
@@ -968,7 +963,7 @@ fn apply_query_item_filter(qi: &QueryItem, qp: &HashMap<String, String>) -> bool
         for f in filters.split(',') {
             match f {
                 "IsFavorite" | "IsFavoriteOrLikes" => {
-                    let is_fav = qi.user_data.as_ref().map(|ud| ud.favorite).unwrap_or(false);
+                    let is_fav = item.get_user_data().map(|ud| ud.favorite).unwrap_or(false);
                     if !is_fav {
                         return false;
                     }
@@ -991,11 +986,11 @@ fn apply_query_item_filter(qi: &QueryItem, qp: &HashMap<String, String>) -> bool
 }
 
 // ---------------------------------------------------------------------------
-// QueryItem-based sorting
+// Item-based sorting
 // ---------------------------------------------------------------------------
 
 pub(crate) fn apply_query_item_sorting(
-    items: &mut Vec<QueryItem>,
+    items: &mut Vec<Item>,
     query_params: &HashMap<String, String>,
 ) {
     let sort_by_raw = match query_params.get("sortBy") {
@@ -1013,37 +1008,37 @@ pub(crate) fn apply_query_item_sorting(
         for field in &sort_fields {
             let ord = match field.as_str() {
                 "communityrating" => {
-                    let ar = a.item.community_rating().unwrap_or(0.0);
-                    let br = b.item.community_rating().unwrap_or(0.0);
+                    let ar = a.community_rating().unwrap_or(0.0);
+                    let br = b.community_rating().unwrap_or(0.0);
                     ar.partial_cmp(&br).unwrap_or(std::cmp::Ordering::Equal)
                 }
-                "datecreated" | "datelastcontentadded" => a.item.created().cmp(&b.item.created()),
+                "datecreated" | "datelastcontentadded" => a.created().cmp(&b.created()),
                 "dateplayed" => {
-                    let ad = a.user_data.as_ref().map(|ud| ud.timestamp);
-                    let bd = b.user_data.as_ref().map(|ud| ud.timestamp);
+                    let ad = a.get_user_data().map(|ud| ud.timestamp);
+                    let bd = b.get_user_data().map(|ud| ud.timestamp);
                     ad.cmp(&bd)
                 }
-                "indexnumber" => a.item.index_number().cmp(&b.item.index_number()),
+                "indexnumber" => a.index_number().cmp(&b.index_number()),
                 "isfavoriteorliked" => {
-                    let af = a.user_data.as_ref().map(|ud| ud.favorite).unwrap_or(false);
-                    let bf = b.user_data.as_ref().map(|ud| ud.favorite).unwrap_or(false);
+                    let af = a.get_user_data().map(|ud| ud.favorite).unwrap_or(false);
+                    let bf = b.get_user_data().map(|ud| ud.favorite).unwrap_or(false);
                     af.cmp(&bf)
                 }
-                "isfolder" => a.item.is_folder().cmp(&b.item.is_folder()),
+                "isfolder" => a.is_folder().cmp(&b.is_folder()),
                 "isplayed" => {
-                    let ap = a.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
-                    let bp = b.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
+                    let ap = a.get_user_data().map(|ud| ud.played).unwrap_or(false);
+                    let bp = b.get_user_data().map(|ud| ud.played).unwrap_or(false);
                     ap.cmp(&bp)
                 }
                 "isunplayed" => {
-                    let ap = !a.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
-                    let bp = !b.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
+                    let ap = !a.get_user_data().map(|ud| ud.played).unwrap_or(false);
+                    let bp = !b.get_user_data().map(|ud| ud.played).unwrap_or(false);
                     ap.cmp(&bp)
                 }
-                "officialrating" => a.item.official_rating().cmp(&b.item.official_rating()),
-                "parentindexnumber" => a.item.parent_index_number().cmp(&b.item.parent_index_number()),
-                "premieredate" => a.item.premiere_date().cmp(&b.item.premiere_date()),
-                "productionyear" => a.item.production_year().cmp(&b.item.production_year()),
+                "officialrating" => a.official_rating().cmp(&b.official_rating()),
+                "parentindexnumber" => a.parent_index_number().cmp(&b.parent_index_number()),
+                "premieredate" => a.premiere_date().cmp(&b.premiere_date()),
+                "productionyear" => a.production_year().cmp(&b.production_year()),
                 "random" => {
                     let mut rng = rand::thread_rng();
                     if rng.gen_bool(0.5) {
@@ -1052,9 +1047,9 @@ pub(crate) fn apply_query_item_sorting(
                         std::cmp::Ordering::Greater
                     }
                 }
-                "runtime" => a.item.run_time_ticks().cmp(&b.item.run_time_ticks()),
+                "runtime" => a.run_time_ticks().cmp(&b.run_time_ticks()),
                 "name" | "seriessortname" | "sortname" | "default" => {
-                    a.item.sort_name().cmp(b.item.sort_name())
+                    a.sort_name().cmp(b.sort_name())
                 }
                 other => {
                     warn!("apply_query_item_sorting: unknown sort field: {}", other);
@@ -1070,13 +1065,13 @@ pub(crate) fn apply_query_item_sorting(
 }
 
 // ---------------------------------------------------------------------------
-// QueryItem-based pagination
+// Item-based pagination
 // ---------------------------------------------------------------------------
 
 pub(crate) fn apply_query_item_pagination(
-    items: Vec<QueryItem>,
+    items: Vec<Item>,
     query_params: &HashMap<String, String>,
-) -> (Vec<QueryItem>, i32) {
+) -> (Vec<Item>, i32) {
     let start_index = query_params
         .get("startIndex")
         .and_then(|v| v.parse::<usize>().ok())
@@ -1094,8 +1089,7 @@ pub(crate) fn apply_query_item_pagination(
         total
     };
 
-    // Move items out of the vec for the requested range
-    let paged: Vec<QueryItem> = items.into_iter().skip(start_index).take(end - start_index).collect();
+    let paged: Vec<Item> = items.into_iter().skip(start_index).take(end - start_index).collect();
     (paged, start_index as i32)
 }
 

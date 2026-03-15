@@ -230,6 +230,8 @@ mod tests {
 
         let movie = Movie {
             id: "m1".to_string(),
+            collection_id: String::new(),
+            user_data: None,
             name: "Movie 1".to_string(),
             sort_name: "movie 1".to_string(),
             path: "movie1".to_string(),

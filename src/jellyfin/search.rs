@@ -41,10 +41,10 @@ pub async fn search_hints(
     });
 
     let mut qitems = if let Some(ref scid) = search_collection_id {
-        get_query_items_by_collection(&state, scid)
+        get_items_by_collection(&state, scid)
             .map_err(|_| StatusCode::NOT_FOUND)?
     } else {
-        get_query_items_all(&state)
+        get_items_all(&state)
     };
 
     if needs_user_data(&query_params) {
@@ -57,7 +57,7 @@ pub async fn search_hints(
     apply_query_item_sorting(&mut qitems, &query_params);
     let (qitems, _) = apply_query_item_pagination(qitems, &query_params);
 
-    let items = convert_query_items_to_dtos(&qitems, &state, &token.user_id).await;
+    let items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;
 
     Ok(Json(SearchHintsResponse {
         search_hints: items,
