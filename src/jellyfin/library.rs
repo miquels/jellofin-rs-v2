@@ -72,33 +72,68 @@ pub async fn items_delete(
     StatusCode::FORBIDDEN
 }
 
-/// GET /Items/{item}/Ancestors - Get ancestors for an item
+/// GET /Items/{item}/Ancestors - Get ancestors for an item.
+/// Returns the chain of parent items from immediate parent up to root.
+/// Episode → [Season, Show, Collection, Root]
+/// Season  → [Show, Collection, Root]
+/// Movie/Show → [Collection, Root]
 pub async fn item_ancestors(
     Extension(token): Extension<AccessToken>,
     State(state): State<JellyfinState>,
     AxumPath(item_id): AxumPath<String>,
 ) -> Result<Json<Vec<BaseItemDto>>, StatusCode> {
-    let (collection, _) = state
-        .collections
-        .get_item_by_id(&item_id)
-        .ok_or(StatusCode::NOT_FOUND)?;
+    use crate::collection::{CollectionFolder, Item};
 
-    let cf_item = crate::collection::Item::CollectionFolder(crate::collection::CollectionFolder {
-        id: collection.id.clone(),
-        name: collection.name.clone(),
-        collection_type: collection.collection_type,
-        child_count: collection.items.len() as i32,
-        genres: collection.details().genres,
-    });
-    let collection_dto = make_jfitem(&state, &token.user_id, &cf_item)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut ancestors: Vec<Item> = Vec::new();
+
+    // Try episode first (most specific) → season → show → collection
+    if let Some((collection, show, season, _episode)) =
+        state.collections.get_episode_by_id(&item_id)
+    {
+        ancestors.push(Item::Season(season));
+        ancestors.push(Item::Show(show));
+        ancestors.push(Item::CollectionFolder(CollectionFolder {
+            id: collection.id.clone(),
+            name: collection.name.clone(),
+            collection_type: collection.collection_type,
+            child_count: collection.items.len() as i32,
+            genres: collection.details().genres,
+        }));
+    }
+    // Try season → show → collection
+    else if let Some((collection, show, _season)) =
+        state.collections.get_season_by_id(&item_id)
+    {
+        ancestors.push(Item::Show(show));
+        ancestors.push(Item::CollectionFolder(CollectionFolder {
+            id: collection.id.clone(),
+            name: collection.name.clone(),
+            collection_type: collection.collection_type,
+            child_count: collection.items.len() as i32,
+            genres: collection.details().genres,
+        }));
+    }
+    // Movie or show → collection
+    else if let Some((collection, _item)) = state.collections.get_item_by_id(&item_id) {
+        ancestors.push(Item::CollectionFolder(CollectionFolder {
+            id: collection.id.clone(),
+            name: collection.name.clone(),
+            collection_type: collection.collection_type,
+            child_count: collection.items.len() as i32,
+            genres: collection.details().genres,
+        }));
+    } else {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let mut result = convert_items_to_dtos(&ancestors, &state, &token.user_id).await;
 
     let root_item = make_jfitem_root(&state, &token.user_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    result.push(root_item);
 
-    Ok(Json(vec![collection_dto, root_item]))
+    Ok(Json(result))
 }
 
 /// GET /Items/{item}/ThemeMedia - Get theme media (not implemented)
