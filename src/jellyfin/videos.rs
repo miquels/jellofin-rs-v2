@@ -2,14 +2,13 @@ use axum::{
     extract::{Path, Request, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use std::path::PathBuf;
 use tower::ServiceExt;
 use tower_http::services::ServeFile;
 use tracing::warn;
 
-use crate::jellyfin::{JellyfinState, UserItemsResponse};
+use crate::jellyfin::JellyfinState;
 
 /// Handlers for /Videos/{item}/stream and related routes
 pub async fn video_stream_handler(
@@ -37,7 +36,7 @@ pub async fn video_stream_handler(
         crate::collection::Item::Season(_) => return StatusCode::NOT_FOUND.into_response(),
         crate::collection::Item::Episode(e) => &e.file_name,
     };
-    
+
     let path_str = match &item {
          crate::collection::Item::Movie(m) => &m.path,
          crate::collection::Item::Show(s) => &s.path,
@@ -67,13 +66,4 @@ pub async fn video_stream_handler(
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
-}
-
-pub async fn media_segments_handler() -> impl IntoResponse {
-    let response = UserItemsResponse {
-        items: vec![],
-        total_record_count: 0,
-        start_index: 0,
-    };
-    Json(response)
 }

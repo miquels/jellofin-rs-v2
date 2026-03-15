@@ -290,6 +290,84 @@ impl Item {
             _ => &[],
         }
     }
+
+    /// Returns a reference to the item's metadata.
+    pub fn metadata(&self) -> &Metadata {
+        match self {
+            Item::Movie(m) => &m.metadata,
+            Item::Show(s) => &s.metadata,
+            Item::Season(_) => {
+                static EMPTY: std::sync::OnceLock<Metadata> = std::sync::OnceLock::new();
+                EMPTY.get_or_init(Metadata::default)
+            }
+            Item::Episode(e) => &e.metadata,
+        }
+    }
+
+    /// Returns studio names for this item.
+    pub fn studios(&self) -> &[String] {
+        match self {
+            Item::Movie(m) => &m.metadata.studios,
+            Item::Show(s) => &s.metadata.studios,
+            Item::Episode(e) => &e.metadata.studios,
+            _ => &[],
+        }
+    }
+
+    /// Returns official rating (e.g. "PG-13") if available.
+    pub fn official_rating(&self) -> Option<&str> {
+        match self {
+            Item::Movie(m) => m.metadata.official_rating.as_deref(),
+            Item::Show(s) => s.metadata.official_rating.as_deref(),
+            _ => None,
+        }
+    }
+
+    /// Returns whether the item has subtitles.
+    pub fn has_subtitles(&self) -> bool {
+        match self {
+            Item::Movie(m) => !m.srt_subs.is_empty() || !m.vtt_subs.is_empty(),
+            Item::Episode(e) => !e.srt_subs.is_empty() || !e.vtt_subs.is_empty(),
+            _ => false,
+        }
+    }
+
+    /// Returns whether the item is HD (720p or higher).
+    pub fn is_hd(&self) -> bool {
+        self.metadata().video_height.map(|h| h >= 720).unwrap_or(false)
+    }
+
+    /// Returns whether the item is 4K (2160p or higher).
+    pub fn is_4k(&self) -> bool {
+        self.metadata().video_height.map(|h| h >= 1500).unwrap_or(false)
+    }
+
+    /// Returns runtime in Jellyfin ticks (100ns units), if available.
+    pub fn run_time_ticks(&self) -> Option<i64> {
+        self.metadata().runtime_ticks()
+    }
+
+    /// Returns the index number (episode number, or season number for seasons).
+    pub fn index_number(&self) -> Option<i32> {
+        match self {
+            Item::Episode(e) => Some(e.episode_no),
+            Item::Season(s) => Some(if s.season_no != 0 { s.season_no } else { 99 }),
+            _ => None,
+        }
+    }
+
+    /// Returns the parent index number (season number for episodes).
+    pub fn parent_index_number(&self) -> Option<i32> {
+        match self {
+            Item::Episode(e) => Some(e.season_no),
+            _ => None,
+        }
+    }
+
+    /// Returns whether this item is a folder/container.
+    pub fn is_folder(&self) -> bool {
+        matches!(self, Item::Show(_) | Item::Season(_))
+    }
 }
 
 /// ItemRef enum - for borrowing without ownership

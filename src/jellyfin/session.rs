@@ -10,7 +10,7 @@ use axum::{
 };
 use std::collections::HashMap;
 
-pub(super) const SESSION_ID: &str = "e3a869b7a901f8894de8ee65688db6c0";
+pub(crate) const SESSION_ID: &str = "e3a869b7a901f8894de8ee65688db6c0";
 
 /// GET /Sessions
 pub async fn sessions(

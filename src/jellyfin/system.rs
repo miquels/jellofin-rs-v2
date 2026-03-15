@@ -1,12 +1,11 @@
 use super::jellyfin::JellyfinState;
 use super::types::*;
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
 };
 use chrono::Utc;
-use std::collections::HashMap;
 
 /// GET /System/Info - Get system information
 pub async fn system_info(State(state): State<JellyfinState>) -> Json<SystemInfo> {
@@ -100,23 +99,6 @@ pub async fn scheduled_tasks() -> Json<Vec<ScheduledTaskInfo>> {
     }])
 }
 
-/// GET /Playback/BitrateTest
-pub async fn playback_bitrate_test(
-    Query(params): Query<HashMap<String, String>>,
-) -> Response {
-    let size = params
-        .get("size")
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(0)
-        .min(20 * 1024 * 1024); // cap at 20 MB
-    let data = vec![0u8; size];
-    (
-        [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
-        data,
-    )
-        .into_response()
-}
-
 /// GET /System/Ping - Ping endpoint
 pub async fn system_ping() -> &'static str {
     "\"Jellyfin Server\""
@@ -130,33 +112,6 @@ pub async fn health() -> &'static str {
 /// GET /Plugins - Get plugins (returns empty list)
 pub async fn plugins() -> Json<Vec<serde_json::Value>> {
     Json(Vec::new())
-}
-
-/// GET /DisplayPreferences/{id} - Get display preferences
-pub async fn display_preferences(
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Json<DisplayPreferencesResponse> {
-    Json(DisplayPreferencesResponse {
-        id,
-        sort_by: "SortName".to_string(),
-        remember_indexing: false,
-        primary_image_height: 250,
-        primary_image_width: 250,
-        custom_prefs: DisplayPreferencesCustomPrefs {
-            chromecast_version: "stable".to_string(),
-            skip_forward_length: "30000".to_string(),
-            skip_back_length: "10000".to_string(),
-            enable_next_video_info_overlay: "False".to_string(),
-            tvhome: "null".to_string(),
-            dashboard_theme: "null".to_string(),
-        },
-        scroll_direction: "Horizontal".to_string(),
-        show_backdrop: true,
-        remember_sorting: false,
-        sort_order: "Ascending".to_string(),
-        show_sidebar: false,
-        client: "emby".to_string(),
-    })
 }
 
 /// GET /socket - WebSocket endpoint (not implemented)

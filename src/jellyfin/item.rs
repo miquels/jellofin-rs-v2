@@ -15,22 +15,6 @@ use super::types::*;
 use crate::database::model;
 use crate::idhash::*;
 
-/// GET /Items/{item} - Get details for a specific item
-pub async fn item_details(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-    // Vec because this handler serves both /Items/{item_id} and /Users/{user_id}/Items/{item_id}.
-    // Single-param route: path = [item_id]. Two-param route: path = [user_id, item_id].
-    AxumPath(path): AxumPath<Vec<String>>,
-) -> Result<Json<BaseItemDto>, StatusCode> {
-    let item_id = path.last().ok_or(StatusCode::BAD_REQUEST)?;
-    let response = make_jfitem_by_id(&state, &token.user_id, &item_id)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    Ok(Json(response))
-}
-
 /// GET /Items - Get list of items based upon provided query params
 pub async fn items_query(
     Extension(token): Extension<model::AccessToken>,
@@ -38,169 +22,79 @@ pub async fn items_query(
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
     let parent_id = query_params.get("parentId").cloned();
-    let search_term = query_params.get("searchTerm").map(|v| v.to_lowercase());
     let recursive = query_params.get("recursive").map(|v| v == "true").unwrap_or(false);
 
-    println!(
-        "XXX parentId {:?} searchTerm {:?} recursive {:?}",
-        parent_id, search_term, recursive
-    );
-
-    let items;
-
-    if let Some(ref pid) = parent_id {
-        items = get_jfitems_by_parent_id(&state, &token.user_id, pid)
-            .await
-            .map_err(|_| StatusCode::NOT_FOUND)?;
-    } else if !recursive {
-        items = make_jfcollection_root_overview(&state, &token.user_id)
-            .await
-            .map_err(|_| StatusCode::NOT_FOUND)?;
-    } else {
-        // Recursive query across all collections — pre-filter and pre-sort at the
-        // collection level to avoid building DTOs for all items when only a few are needed.
-        items = query_items_prefilter(&state, &token.user_id, &query_params)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    }
-
-    println!("XXX first results: {}", items.len());
-
-    let items = apply_items_filter(items, &query_params);
-
-    println!("XXX second results: {}", items.len());
-
-    let total_item_count = items.len() as i32;
-    let sorted_items = apply_item_sorting(items, &query_params);
-    let (mut paged_items, start_index) = apply_item_pagination(sorted_items, &query_params);
-    apply_fields_filter(&mut paged_items, &query_params);
-
-    Ok(Json(UserItemsResponse {
-        items: paged_items,
-        start_index,
-        total_record_count: total_item_count,
-    }))
-}
-
-/// Pre-filter items at the collection level, then build DTOs
-/// only for the items that will actually be returned. This avoids building
-/// DTOs for all 6990+ items when the client only needs 3.
-async fn query_items_prefilter(
-    state: &JellyfinState,
-    user_id: &str,
-    query_params: &HashMap<String, String>,
-) -> Result<Vec<BaseItemDto>, StatusCode> {
-    use crate::collection::Item;
-
-    // Collect type filter
-    let type_filter: Option<Vec<&str>> = query_params.get("includeItemTypes").map(|t| t.split(',').collect());
-
-    // Genre filter: genreIds are "genre_<hash>" — we need to match by generating IDs from item genres
-    let genre_ids: Option<Vec<&str>> = query_params.get("genreIds").map(|g| g.split('|').collect());
-
-    // Search term.
-    let search_term = query_params.get("searchTerm").map(|s| s.to_lowercase());
-
-    // Gather matching (item_ref, collection_id) pairs from all collections
-    let collections = state.collections.get_collections();
-    let mut matching: Vec<(&Item, &str)> = Vec::new();
-    for c in &collections {
-        for item in &c.items {
-            // Search term.
-            if let Some(ref term) = search_term {
-                if !item.name().to_lowercase().contains(term.as_str()) {
-                    continue;
-                }
-            }
-
-            // Type filter
-            if let Some(ref types) = type_filter {
-                if !types.contains(&item.jf_type()) {
-                    continue;
-                }
-            }
-
-            // Genre filter
-            if let Some(ref gids) = genre_ids {
-                let item_genre_ids: Vec<String> = item
-                    .genres()
-                    .iter()
-                    .map(|g| id_hash_prefix(ITEM_PREFIX_GENRE, g))
-                    .collect();
-                if !gids.iter().any(|gid| item_genre_ids.iter().any(|ig| ig == gid)) {
-                    continue;
-                }
-            }
-            matching.push((item, &c.id));
-        }
-    }
-
-    // Build DTOs only for the selected items
-    let mut items = Vec::with_capacity(matching.len());
-    for (item, collection_id) in matching {
-        match make_jfitem_light(state, user_id, item, collection_id).await {
-            Ok(dto) => items.push(dto),
-            Err(e) => warn!("query_items_prefilter: {}", e),
-        }
-    }
-
-    Ok(items)
-}
-
-/// GET /Items/Latest - Get latest items
-pub async fn items_latest(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-    Query(query_params): Query<HashMap<String, String>>,
-) -> Result<Json<Vec<BaseItemDto>>, StatusCode> {
-    let parent_id = query_params.get("parentId").cloned();
-
-    let mut items = if let Some(ref pid) = parent_id {
-        get_jfitems_by_parent_id(&state, &token.user_id, pid)
-            .await
-            .map_err(|_| StatusCode::NOT_FOUND)?
-    } else {
-        get_jfitems_all(&state, &token.user_id)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+    // Determine if this request can use the QueryItem pipeline (native items)
+    // or must fall back to the DTO path (virtual/hierarchical items).
+    let use_query_pipeline = match &parent_id {
+        None if recursive => true,
+        Some(pid) if is_jf_collection_id(pid)
+            && !is_jf_root_id(pid)
+            && !is_jf_collection_favorites_id(pid)
+            && !is_jf_collection_playlist_id(pid) => true,
+        Some(pid) if is_jf_genre_id(pid) => true,
+        Some(pid) if is_jf_studio_id(pid) => true,
+        _ => false,
     };
 
-    items = apply_items_filter(items, &query_params);
+    if use_query_pipeline {
+        // --- QueryItem pipeline: filter/sort/paginate on native types, convert only the page ---
+        let mut qitems = match &parent_id {
+            None => get_query_items_all(&state),
+            Some(pid) if is_jf_collection_id(pid) => {
+                get_query_items_by_collection(&state, pid)
+                    .map_err(|_| StatusCode::NOT_FOUND)?
+            }
+            Some(pid) if is_jf_genre_id(pid) => get_query_items_by_genre(&state, pid),
+            Some(pid) if is_jf_studio_id(pid) => get_query_items_by_studio(&state, pid),
+            _ => unreachable!(),
+        };
 
-    // Sort by premiere date descending
-    items.sort_by(|a, b| b.premiere_date.cmp(&a.premiere_date));
+        // Load user_data only if filters/sorts need it
+        if needs_user_data(&query_params) {
+            load_user_data(&mut qitems, &state, &token.user_id).await;
+        }
 
-    // Default limit to 50 for latest if not provided
-    let mut qp = query_params.clone();
-    if !qp.contains_key("limit") {
-        qp.insert("limit".to_string(), "50".to_string());
+        let qitems = apply_query_items_filter(qitems, &query_params);
+        let total_item_count = qitems.len() as i32;
+        let mut qitems = qitems;
+        apply_query_item_sorting(&mut qitems, &query_params);
+        let (qitems, start_index) = apply_query_item_pagination(qitems, &query_params);
+
+        // Convert only the final page to BaseItemDto
+        let mut items = convert_query_items_to_dtos(&qitems, &state, &token.user_id).await;
+        apply_fields_filter(&mut items, &query_params);
+
+        Ok(Json(UserItemsResponse {
+            items,
+            start_index,
+            total_record_count: total_item_count,
+        }))
+    } else {
+        // --- DTO path: virtual items, hierarchical browsing (shows→seasons, seasons→episodes) ---
+        let items = if let Some(ref pid) = parent_id {
+            get_jfitems_by_parent_id(&state, &token.user_id, pid)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?
+        } else {
+            // !recursive, no parentId → root overview
+            make_jfcollection_root_overview(&state, &token.user_id)
+                .await
+                .map_err(|_| StatusCode::NOT_FOUND)?
+        };
+
+        let items = apply_items_filter(items, &query_params);
+        let total_item_count = items.len() as i32;
+        let sorted_items = apply_item_sorting(items, &query_params);
+        let (mut paged_items, start_index) = apply_item_pagination(sorted_items, &query_params);
+        apply_fields_filter(&mut paged_items, &query_params);
+
+        Ok(Json(UserItemsResponse {
+            items: paged_items,
+            start_index,
+            total_record_count: total_item_count,
+        }))
     }
-
-    let (paged_items, _) = apply_item_pagination(items, &qp);
-    Ok(Json(paged_items))
-}
-
-/// GET /Items/Counts - Get item counts
-pub async fn items_counts(
-    Extension(_token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-) -> Json<ItemCountResponse> {
-    let details = state.collections.details();
-
-    Json(ItemCountResponse {
-        movie_count: details.movie_count as i32,
-        series_count: details.show_count as i32,
-        episode_count: details.episode_count as i32,
-        artist_count: 0,
-        program_count: 0,
-        trailer_count: 0,
-        song_count: 0,
-        album_count: 0,
-        music_video_count: 0,
-        box_set_count: 0,
-        book_count: 0,
-        item_count: (details.movie_count + details.show_count + details.episode_count) as i32,
-    })
 }
 
 /// GET /Items/Resume - Get resume items
@@ -219,241 +113,97 @@ pub async fn items_resume(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    let mut items = Vec::new();
+    // Collect as QueryItems
+    let mut qitems: Vec<QueryItem> = Vec::new();
     for id in resume_ids {
         if let Some((c, item)) = state.collections.get_item_by_id(&id) {
-            if let Ok(dto) = make_jfitem(&state, &token.user_id, &item, &c.id).await {
-                items.push(dto);
-            }
+            qitems.push(QueryItem {
+                item,
+                collection_id: c.id.clone(),
+                user_data: None,
+            });
         }
     }
 
-    let items = apply_items_filter(items, &query_params);
-    let total_count = items.len() as i32;
-    let items = apply_item_sorting(items, &query_params);
-    let (paged_items, start_index) = apply_item_pagination(items, &query_params);
+    // Resume items always need user_data for display
+    load_user_data(&mut qitems, &state, &token.user_id).await;
+
+    let qitems = apply_query_items_filter(qitems, &query_params);
+    let total_count = qitems.len() as i32;
+    let mut qitems = qitems;
+    apply_query_item_sorting(&mut qitems, &query_params);
+    let (qitems, start_index) = apply_query_item_pagination(qitems, &query_params);
+
+    let items = convert_query_items_to_dtos(&qitems, &state, &token.user_id).await;
 
     Ok(Json(UsersItemsResumeResponse {
-        items: paged_items,
+        items,
         start_index,
         total_record_count: total_count,
     }))
 }
 
-/// GET /Items/{item}/Similar - Get similar items
-pub async fn items_similar(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-    // Vec because this handler serves both /Items/{item_id}/Similar and /Users/{user_id}/Items/{item_id}/Similar.
-    // Single-param route: path = [item_id]. Two-param route: path = [user_id, item_id].
-    AxumPath(path): AxumPath<Vec<String>>,
-    Query(query_params): Query<HashMap<String, String>>,
-) -> Result<Json<UsersItemsSimilarResponse>, StatusCode> {
-    let item_id = path.last().ok_or(StatusCode::BAD_REQUEST)?;
-    let (collection, item) = state
-        .collections
-        .get_item_by_id(&item_id)
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    let limit = query_params
-        .get("limit")
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(10);
-    let similar_ids = state.collections.similar(&collection.id, &item.id(), limit).await;
-
-    let mut items = Vec::new();
-    for id in similar_ids {
-        if let Some((c, item)) = state.collections.get_item_by_id(&id) {
-            if let Ok(dto) = make_jfitem(&state, &token.user_id, &item, &c.id).await {
-                items.push(dto);
-            }
-        }
-    }
-
-    let items = apply_items_filter(items, &query_params);
-    let total_count = items.len() as i32;
-    let items = apply_item_sorting(items, &query_params);
-
-    Ok(Json(UsersItemsSimilarResponse {
-        items: items,
-        start_index: 0,
-        total_record_count: total_count,
-    }))
+/// POST /Items/{item}/Refresh - Queue item refresh (not implemented)
+pub async fn items_refresh() -> StatusCode {
+    StatusCode::NO_CONTENT
 }
 
-/// GET /Items/{item}/SpecialFeatures - Returns empty list (not implemented)
-pub async fn items_special_features(
-    Extension(_token): Extension<model::AccessToken>,
-    State(_state): State<JellyfinState>,
-    AxumPath(_item_id): AxumPath<String>,
-) -> Json<Vec<BaseItemDto>> {
+/// GET /Items/{item}/RemoteImages - Get remote images (not implemented)
+pub async fn items_remote_images() -> Json<ItemRemoteImagesResponse> {
+    Json(ItemRemoteImagesResponse {
+        images: Vec::new(),
+        total_record_count: 0,
+        providers: Vec::new(),
+    })
+}
+
+/// GET /SyncPlay/List - List SyncPlay groups (stub)
+pub async fn sync_play_list() -> Json<Vec<serde_json::Value>> {
     Json(Vec::new())
 }
 
-/// DELETE /Items/{item} - Not implemented, returns Forbidden
-pub async fn items_delete(
-    Extension(_token): Extension<model::AccessToken>,
-    State(_state): State<JellyfinState>,
-    AxumPath(_item_id): AxumPath<String>,
-) -> StatusCode {
-    StatusCode::FORBIDDEN
+/// POST /SyncPlay/New - Create SyncPlay group (not implemented)
+pub async fn sync_play_new() -> StatusCode {
+    StatusCode::UNAUTHORIZED
 }
 
-/// GET /Items/{item}/PlaybackInfo - Returns playback info including media sources
-pub async fn items_playback_info(
-    Extension(_token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-    AxumPath(item_id): AxumPath<String>,
-) -> Result<Json<PlaybackInfoResponse>, StatusCode> {
-    let (_, item) = state
-        .collections
-        .get_item_by_id(&item_id)
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    use crate::collection::Item;
-    let media_sources = match &item {
-        Item::Movie(m) => make_media_source(&m.id, &m.file_name, m.file_size, &m.metadata),
-        Item::Episode(e) => make_media_source(&e.id, &e.file_name, e.file_size, &e.metadata),
-        _ => return Err(StatusCode::NOT_FOUND),
-    };
-
-    if media_sources.is_empty() {
-        return Err(StatusCode::NOT_FOUND);
-    }
-
-    Ok(Json(PlaybackInfoResponse {
-        media_sources,
-        play_session_id: super::session::SESSION_ID.to_string(),
-    }))
-}
-
-/// GET /Search/Hints - Get search hints
-pub async fn search_hints(
+/// GET /Users/{user}/Items/{item}/UserData
+/// GET /UserItems/{item}/UserData
+pub async fn users_item_userdata(
     Extension(token): Extension<model::AccessToken>,
     State(state): State<JellyfinState>,
-    Query(query_params): Query<HashMap<String, String>>,
-) -> Result<Json<SearchHintsResponse>, StatusCode> {
-    if let Some(parent_id) = query_params.get("parentId") {
-        if is_jf_collection_playlist_id(parent_id) {
-            let items = make_jfitem_playlist_overview(&state, &token.user_id)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            return Ok(Json(SearchHintsResponse {
-                search_hints: items,
-                total_record_count: 0,
-            }));
-        }
-    }
-
-    // Determine if we should scope search to a specific collection
-    let search_collection_id = query_params.get("parentId").and_then(|pid| {
-        if is_jf_collection_id(pid) {
-            Some(pid.to_string())
-        } else {
-            None
-        }
-    });
-
-    let mut items = Vec::new();
-    for c in state.collections.get_collections() {
-        // Skip if we are searching in one particular collection
-        if let Some(ref scid) = search_collection_id {
-            if *scid != c.id {
-                continue;
-            }
-        }
-        for item in &c.items {
-            if let Ok(dto) = make_jfitem(&state, &token.user_id, item, &c.id).await {
-                items.push(dto);
-            }
-        }
-    }
-
-    let items = apply_items_filter(items, &query_params);
-    let total_count = items.len() as i32;
-    let items = apply_item_sorting(items, &query_params);
-    let (paged_items, _) = apply_item_pagination(items, &query_params);
-
-    Ok(Json(SearchHintsResponse {
-        search_hints: paged_items,
-        total_record_count: total_count,
-    }))
-}
-
-/// GET /Items/{item}/Ancestors - Get ancestors for an item
-pub async fn item_ancestors(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-    AxumPath(item_id): AxumPath<String>,
-) -> Result<Json<Vec<BaseItemDto>>, StatusCode> {
-    let (collection, _) = state
-        .collections
-        .get_item_by_id(&item_id)
-        .ok_or(StatusCode::NOT_FOUND)?;
-
-    let collection_item =
-        make_jfitem_collection(&state, &collection.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    let root_item = make_jfitem_root(&state, &token.user_id)
+    AxumPath(params): AxumPath<(String, String)>,
+) -> Json<UserItemDataDto> {
+    let item_id = &params.1;
+    let playstate = state
+        .repo
+        .get_user_data(&token.user_id, item_id)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .ok();
 
-    Ok(Json(vec![collection_item, root_item]))
+    Json(make_jf_userdata(&token.user_id, item_id, playstate.as_ref()))
 }
 
-/// GET /Users/{userId}/Items/Suggestions - Get item suggestions
-/// GET /Items/Suggestions - Get item suggestions
-pub async fn items_suggestions(
-    Extension(_token): Extension<model::AccessToken>,
-    State(_state): State<JellyfinState>,
-) -> Json<UsersItemsSuggestionsResponse> {
-    Json(UsersItemsSuggestionsResponse {
-        items: Vec::new(),
-        start_index: 0,
-        total_record_count: 0,
-    })
-}
-
-/// GET /Users/{userId}/Items/Filters - Get item filters
-pub async fn item_filters(
-    Extension(_token): Extension<model::AccessToken>,
+// Support for /UserItems/{item}/UserData which only has one path param
+pub async fn users_item_userdata_simple(
+    Extension(token): Extension<model::AccessToken>,
     State(state): State<JellyfinState>,
-) -> Json<ItemFilterResponse> {
-    let details = state.collections.details();
-    Json(ItemFilterResponse {
-        genres: details.genres,
-        tags: details.tags,
-        official_ratings: details.official_ratings,
-        years: details.years,
-    })
-}
+    AxumPath(item_id): AxumPath<String>,
+) -> Json<UserItemDataDto> {
+    let playstate = state
+        .repo
+        .get_user_data(&token.user_id, &item_id)
+        .await
+        .ok();
 
-/// GET /Users/{userId}/Items/Filters2 - Get item filters version 2
-pub async fn item_filters2(
-    Extension(_token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-) -> Json<ItemFilter2Response> {
-    let details = state.collections.details();
-    let genres = details
-        .genres
-        .into_iter()
-        .map(|g| NameGuidPair {
-            name: g.clone(),
-            id: id_hash_prefix(ITEM_PREFIX_GENRE, &g),
-        })
-        .collect();
-
-    Json(ItemFilter2Response {
-        genres,
-        tags: details.tags,
-    })
+    Json(make_jf_userdata(&token.user_id, &item_id, playstate.as_ref()))
 }
 
 // ---------------------------------------------------------------------------
 // Filtering
 // ---------------------------------------------------------------------------
 
-fn apply_items_filter(items: Vec<BaseItemDto>, query_params: &HashMap<String, String>) -> Vec<BaseItemDto> {
+pub(crate) fn apply_items_filter(items: Vec<BaseItemDto>, query_params: &HashMap<String, String>) -> Vec<BaseItemDto> {
     items
         .into_iter()
         .filter(|i| apply_item_filter(i, query_params))
@@ -744,7 +494,7 @@ pub(super) fn apply_item_filter(i: &BaseItemDto, qp: &HashMap<String, String>) -
 // Sorting
 // ---------------------------------------------------------------------------
 
-pub(super) fn apply_item_sorting(
+pub(crate) fn apply_item_sorting(
     mut items: Vec<BaseItemDto>,
     query_params: &HashMap<String, String>,
 ) -> Vec<BaseItemDto> {
@@ -830,7 +580,7 @@ pub(super) fn apply_item_sorting(
 // Pagination
 // ---------------------------------------------------------------------------
 
-pub(super) fn apply_item_pagination(
+pub(crate) fn apply_item_pagination(
     items: Vec<BaseItemDto>,
     query_params: &HashMap<String, String>,
 ) -> (Vec<BaseItemDto>, i32) {
@@ -965,6 +715,391 @@ fn apply_fields_filter(items: &mut Vec<BaseItemDto>, query_params: &HashMap<Stri
 }
 
 // ---------------------------------------------------------------------------
+// QueryItem-based filtering (operates on native types, not BaseItemDto)
+// ---------------------------------------------------------------------------
+
+pub(crate) fn apply_query_items_filter(items: Vec<QueryItem>, query_params: &HashMap<String, String>) -> Vec<QueryItem> {
+    items
+        .into_iter()
+        .filter(|qi| apply_query_item_filter(qi, query_params))
+        .collect()
+}
+
+fn apply_query_item_filter(qi: &QueryItem, qp: &HashMap<String, String>) -> bool {
+    let item = &qi.item;
+
+    // includeItemTypes
+    if let Some(types) = qp.get("includeItemTypes") {
+        let type_list: Vec<&str> = types.split(',').collect();
+        if !type_list.contains(&item.jf_type()) {
+            return false;
+        }
+    }
+
+    // excludeItemTypes
+    if let Some(types) = qp.get("excludeItemTypes") {
+        let type_list: Vec<&str> = types.split(',').collect();
+        if type_list.contains(&item.jf_type()) {
+            return false;
+        }
+    }
+
+    // isHd
+    if let Some(hd) = qp.get("isHd") {
+        let want_hd = hd.eq_ignore_ascii_case("true");
+        if item.is_hd() != want_hd {
+            return false;
+        }
+    }
+
+    // is4K
+    if let Some(k4) = qp.get("is4K") {
+        let want_4k = k4.eq_ignore_ascii_case("true");
+        if item.is_4k() != want_4k {
+            return false;
+        }
+    }
+
+    // ids
+    if let Some(ids) = qp.get("ids") {
+        let id = item.id();
+        let id_list: Vec<&str> = ids.split(',').collect();
+        if !id_list.contains(&id.as_str()) {
+            return false;
+        }
+    }
+
+    // excludeItemIds
+    if let Some(exclude_ids) = qp.get("excludeItemIds") {
+        let id = item.id();
+        for eid in exclude_ids.split(',') {
+            if id == eid {
+                return false;
+            }
+        }
+    }
+
+    // genreIds (pipe-separated)
+    if let Some(genre_ids) = qp.get("genreIds") {
+        let item_genre_ids: Vec<String> = item
+            .genres()
+            .iter()
+            .map(|g| id_hash_prefix(ITEM_PREFIX_GENRE, g))
+            .collect();
+        let mut keep = false;
+        for gid in genre_ids.split('|') {
+            if item_genre_ids.iter().any(|ig| ig == gid) {
+                keep = true;
+                break;
+            }
+        }
+        if !keep {
+            return false;
+        }
+    }
+
+    // studioIds (pipe-separated)
+    if let Some(studio_ids) = qp.get("studioIds") {
+        let item_studio_ids: Vec<String> = item
+            .studios()
+            .iter()
+            .map(|s| id_hash_prefix(ITEM_PREFIX_STUDIO, s))
+            .collect();
+        let mut keep = false;
+        for sid in studio_ids.split('|') {
+            if item_studio_ids.iter().any(|is| is == sid) {
+                keep = true;
+                break;
+            }
+        }
+        if !keep {
+            return false;
+        }
+    }
+
+    // parentIndexNumber
+    if let Some(pin_str) = qp.get("parentIndexNumber") {
+        if let Ok(pin) = pin_str.parse::<i32>() {
+            if item.parent_index_number() != Some(pin) {
+                return false;
+            }
+        }
+    }
+
+    // indexNumber
+    if let Some(in_str) = qp.get("indexNumber") {
+        if let Ok(idx) = in_str.parse::<i32>() {
+            if item.index_number() != Some(idx) {
+                return false;
+            }
+        }
+    }
+
+    // nameStartsWith (case-insensitive)
+    if let Some(prefix) = qp.get("nameStartsWith") {
+        if !item.sort_name().to_lowercase().starts_with(&prefix.to_lowercase()) {
+            return false;
+        }
+    }
+
+    // nameStartsWithOrGreater (case-insensitive)
+    if let Some(bound) = qp.get("nameStartsWithOrGreater") {
+        if item.sort_name().to_lowercase() < bound.to_lowercase() {
+            return false;
+        }
+    }
+
+    // nameLessThan (case-insensitive)
+    if let Some(bound) = qp.get("nameLessThan") {
+        if item.sort_name().to_lowercase() > bound.to_lowercase() {
+            return false;
+        }
+    }
+
+    // genres (by name, pipe-separated)
+    if let Some(include_genres) = qp.get("genres") {
+        let item_genres = item.genres();
+        let mut keep = false;
+        for g in include_genres.split('|') {
+            if item_genres.iter().any(|ig| ig == g) {
+                keep = true;
+                break;
+            }
+        }
+        if !keep {
+            return false;
+        }
+    }
+
+    // studios (by name, pipe-separated)
+    if let Some(include_studios) = qp.get("studios") {
+        let item_studios = item.studios();
+        let mut keep = false;
+        for s in include_studios.split('|') {
+            if item_studios.iter().any(|is| is == s) {
+                keep = true;
+                break;
+            }
+        }
+        if !keep {
+            return false;
+        }
+    }
+
+    // officialRatings (pipe-separated)
+    if let Some(ratings) = qp.get("officialRatings") {
+        let mut keep = false;
+        for r in ratings.split('|') {
+            if item.official_rating() == Some(r) {
+                keep = true;
+                break;
+            }
+        }
+        if !keep {
+            return false;
+        }
+    }
+
+    // minCommunityRating
+    if let Some(min_str) = qp.get("minCommunityRating") {
+        if let Ok(min) = min_str.parse::<f32>() {
+            if item.community_rating().unwrap_or(0.0) < min {
+                return false;
+            }
+        }
+    }
+
+    // minPremiereDate
+    if let Some(date_str) = qp.get("minPremiereDate") {
+        if let Some(min_date) = parse_iso8601_date(date_str) {
+            match item.premiere_date() {
+                Some(pd) if pd >= min_date => {}
+                _ => return false,
+            }
+        }
+    }
+
+    // maxPremiereDate
+    if let Some(date_str) = qp.get("maxPremiereDate") {
+        if let Some(max_date) = parse_iso8601_date(date_str) {
+            match item.premiere_date() {
+                Some(pd) if pd <= max_date => {}
+                _ => return false,
+            }
+        }
+    }
+
+    // years (comma-separated)
+    if let Some(years_str) = qp.get("years") {
+        let mut keep = false;
+        for y in years_str.split(',') {
+            if let Ok(year) = y.parse::<i32>() {
+                if item.production_year() == Some(year) {
+                    keep = true;
+                    break;
+                }
+            }
+        }
+        if !keep {
+            return false;
+        }
+    }
+
+    // isPlayed (requires user_data)
+    if let Some(played_str) = qp.get("isPlayed") {
+        let want_played = played_str.eq_ignore_ascii_case("true");
+        let is_played = qi.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
+        if want_played != is_played {
+            return false;
+        }
+    }
+
+    // isFavorite (requires user_data)
+    if let Some(fav_str) = qp.get("isFavorite") {
+        let want_fav = fav_str.eq_ignore_ascii_case("true");
+        let is_fav = qi.user_data.as_ref().map(|ud| ud.favorite).unwrap_or(false);
+        if want_fav != is_fav {
+            return false;
+        }
+    }
+
+    // filters (comma-separated, e.g. "IsFavorite", "IsFavoriteOrLikes")
+    if let Some(filters) = qp.get("filters") {
+        for f in filters.split(',') {
+            match f {
+                "IsFavorite" | "IsFavoriteOrLikes" => {
+                    let is_fav = qi.user_data.as_ref().map(|ud| ud.favorite).unwrap_or(false);
+                    if !is_fav {
+                        return false;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // searchTerm
+    if let Some(term) = qp.get("searchTerm") {
+        let id = item.id();
+        let media = is_jf_movie_id(&id) || is_jf_show_id(&id) || is_jf_season_id(&id) || is_jf_episode_id(&id);
+        if media && !item.name().to_lowercase().contains(&term.to_lowercase()) {
+            return false;
+        }
+    }
+
+    true
+}
+
+// ---------------------------------------------------------------------------
+// QueryItem-based sorting
+// ---------------------------------------------------------------------------
+
+pub(crate) fn apply_query_item_sorting(
+    items: &mut Vec<QueryItem>,
+    query_params: &HashMap<String, String>,
+) {
+    let sort_by_raw = match query_params.get("sortBy") {
+        Some(s) if !s.is_empty() => s.clone(),
+        _ => return,
+    };
+    let sort_fields: Vec<String> = sort_by_raw.split(',').map(|s| s.to_lowercase()).collect();
+
+    let descending = query_params
+        .get("sortOrder")
+        .map(|s| s.eq_ignore_ascii_case("descending"))
+        .unwrap_or(false);
+
+    items.sort_by(|a, b| {
+        for field in &sort_fields {
+            let ord = match field.as_str() {
+                "communityrating" => {
+                    let ar = a.item.community_rating().unwrap_or(0.0);
+                    let br = b.item.community_rating().unwrap_or(0.0);
+                    ar.partial_cmp(&br).unwrap_or(std::cmp::Ordering::Equal)
+                }
+                "datecreated" | "datelastcontentadded" => a.item.created().cmp(&b.item.created()),
+                "dateplayed" => {
+                    let ad = a.user_data.as_ref().map(|ud| ud.timestamp);
+                    let bd = b.user_data.as_ref().map(|ud| ud.timestamp);
+                    ad.cmp(&bd)
+                }
+                "indexnumber" => a.item.index_number().cmp(&b.item.index_number()),
+                "isfavoriteorliked" => {
+                    let af = a.user_data.as_ref().map(|ud| ud.favorite).unwrap_or(false);
+                    let bf = b.user_data.as_ref().map(|ud| ud.favorite).unwrap_or(false);
+                    af.cmp(&bf)
+                }
+                "isfolder" => a.item.is_folder().cmp(&b.item.is_folder()),
+                "isplayed" => {
+                    let ap = a.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
+                    let bp = b.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
+                    ap.cmp(&bp)
+                }
+                "isunplayed" => {
+                    let ap = !a.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
+                    let bp = !b.user_data.as_ref().map(|ud| ud.played).unwrap_or(false);
+                    ap.cmp(&bp)
+                }
+                "officialrating" => a.item.official_rating().cmp(&b.item.official_rating()),
+                "parentindexnumber" => a.item.parent_index_number().cmp(&b.item.parent_index_number()),
+                "premieredate" => a.item.premiere_date().cmp(&b.item.premiere_date()),
+                "productionyear" => a.item.production_year().cmp(&b.item.production_year()),
+                "random" => {
+                    let mut rng = rand::thread_rng();
+                    if rng.gen_bool(0.5) {
+                        std::cmp::Ordering::Less
+                    } else {
+                        std::cmp::Ordering::Greater
+                    }
+                }
+                "runtime" => a.item.run_time_ticks().cmp(&b.item.run_time_ticks()),
+                "name" | "seriessortname" | "sortname" | "default" => {
+                    a.item.sort_name().cmp(b.item.sort_name())
+                }
+                other => {
+                    warn!("apply_query_item_sorting: unknown sort field: {}", other);
+                    std::cmp::Ordering::Equal
+                }
+            };
+            if ord != std::cmp::Ordering::Equal {
+                return if descending { ord.reverse() } else { ord };
+            }
+        }
+        std::cmp::Ordering::Equal
+    });
+}
+
+// ---------------------------------------------------------------------------
+// QueryItem-based pagination
+// ---------------------------------------------------------------------------
+
+pub(crate) fn apply_query_item_pagination(
+    items: Vec<QueryItem>,
+    query_params: &HashMap<String, String>,
+) -> (Vec<QueryItem>, i32) {
+    let start_index = query_params
+        .get("startIndex")
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(0);
+    let limit = query_params.get("limit").and_then(|v| v.parse::<usize>().ok());
+
+    let total = items.len();
+    if start_index >= total {
+        return (Vec::new(), start_index as i32);
+    }
+
+    let end = if let Some(l) = limit {
+        std::cmp::min(start_index + l, total)
+    } else {
+        total
+    };
+
+    // Move items out of the vec for the requested range
+    let paged: Vec<QueryItem> = items.into_iter().skip(start_index).take(end - start_index).collect();
+    (paged, start_index as i32)
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -998,67 +1133,4 @@ pub fn parse_iso8601_date(input: &str) -> Option<DateTime<Utc>> {
         }
     }
     None
-}
-
-/// GET /Items/Root - Get root folder item
-pub async fn items_root(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-) -> Result<Json<BaseItemDto>, StatusCode> {
-    let item = make_jfitem_root(&state, &token.user_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(item))
-}
-
-/// GET /Items/{item}/Intros - Get item intros (not implemented)
-pub async fn items_intros() -> Json<UserItemsResponse> {
-    Json(UserItemsResponse {
-        items: Vec::new(),
-        total_record_count: 0,
-        start_index: 0,
-    })
-}
-
-/// GET /Items/{item}/LocalTrailers - Get local trailers (not implemented)
-pub async fn items_local_trailers() -> Json<Vec<BaseItemDto>> {
-    Json(Vec::new())
-}
-
-/// GET /Items/{item}/ThemeMedia - Get theme media (not implemented)
-pub async fn items_theme_media() -> Json<ItemThemeMediaResponse> {
-    let empty = UserItemsResponse {
-        items: Vec::new(),
-        total_record_count: 0,
-        start_index: 0,
-    };
-    Json(ItemThemeMediaResponse {
-        theme_videos_result: empty.clone(),
-        theme_songs_result: empty.clone(),
-        soundtrack_songs_result: empty,
-    })
-}
-
-/// POST /Items/{item}/Refresh - Queue item refresh (not implemented)
-pub async fn items_refresh() -> StatusCode {
-    StatusCode::NO_CONTENT
-}
-
-/// GET /Items/{item}/RemoteImages - Get remote images (not implemented)
-pub async fn items_remote_images() -> Json<ItemRemoteImagesResponse> {
-    Json(ItemRemoteImagesResponse {
-        images: Vec::new(),
-        total_record_count: 0,
-        providers: Vec::new(),
-    })
-}
-
-/// GET /SyncPlay/List - List SyncPlay groups (stub)
-pub async fn sync_play_list() -> Json<Vec<serde_json::Value>> {
-    Json(Vec::new())
-}
-
-/// POST /SyncPlay/New - Create SyncPlay group (not implemented)
-pub async fn sync_play_new() -> StatusCode {
-    StatusCode::UNAUTHORIZED
 }

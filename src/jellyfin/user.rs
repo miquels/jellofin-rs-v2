@@ -1,23 +1,17 @@
+use super::auth::{create_new_token, create_user, make_session_info, parse_auth_header, JellyfinAuthState};
 use super::jellyfin::JellyfinState;
-use super::jfitem::*;
 use super::types::*;
 use crate::database::{model, ImageMetadata};
 use crate::identicon::generate_identicon;
 use crate::idhash::id_hash;
 use axum::{
     extract::{Path as AxumPath, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::{IntoResponse, Json, Response},
     Extension,
 };
-use bcrypt::{hash, DEFAULT_COST};
+use bcrypt::{hash, verify, DEFAULT_COST};
 use tracing::error;
-
-#[derive(serde::Deserialize)]
-pub struct UserViewsQuery {
-    #[serde(rename = "userId")]
-    pub user_id: Option<String>,
-}
 
 #[derive(serde::Deserialize)]
 pub struct UserNewRequest {
@@ -33,6 +27,135 @@ pub struct UserPasswordRequest {
     pub current_pw: String,
     #[serde(rename = "NewPw", default)]
     pub new_pw: String,
+}
+
+/// POST /Users/AuthenticateByName
+pub async fn authenticate_by_name(
+    State(state): State<JellyfinAuthState>,
+    headers: HeaderMap,
+    Json(request): Json<AuthenticateUserByNameRequest>,
+) -> Result<Json<AuthenticateByNameResponse>, StatusCode> {
+    if request.username.is_empty() || request.pw.is_empty() {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let username = request.username.to_lowercase();
+
+    // Try to get user from database
+    let mut user = state.repo.get_user(&username).await.ok();
+
+    // Check if user exists or needs creation
+    if let Some(db_user) = user.take() {
+         // Verify password
+        if !verify(&request.pw, &db_user.password).unwrap_or(false) {
+            return Err(StatusCode::UNAUTHORIZED);
+        } else {
+            user = Some(db_user);
+        }
+    } else if state.auto_register {
+        // Auto-register user
+        user = create_user(&state.repo, &username, &request.pw).await.ok();
+        if user.is_none() {
+            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+        }
+    } else {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
+
+    let mut user = user.unwrap();
+
+    // Update last login
+    user.last_login = chrono::Utc::now();
+    user.last_used = chrono::Utc::now();
+    if let Err(_) = state.repo.upsert_user(&user).await {
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    // Parse auth header
+    let emby_header = parse_auth_header(&headers);
+
+    let device_id = emby_header.as_ref().map(|h| h.device_id.as_str()).unwrap_or("");
+
+    // Reuse existing token for the same device if one exists
+    let access_token = if !device_id.is_empty() {
+        if let Ok(mut existing) = state.repo.get_access_token_by_device_id(device_id).await {
+            // Update last_used and details, reuse the token string
+            existing.user_id = user.id.clone();
+            existing.last_used = chrono::Utc::now();
+            if let Some(ref h) = emby_header {
+                existing.device_name = h.device.clone();
+                existing.application_name = h.client.clone();
+                existing.application_version = h.client_version.clone();
+            }
+            let _ = state.repo.upsert_access_token(&existing).await;
+            existing
+        } else {
+            create_new_token(&state.repo, &user.id, emby_header.as_ref()).await?
+        }
+    } else {
+        create_new_token(&state.repo, &user.id, emby_header.as_ref()).await?
+    };
+
+    let response = AuthenticateByNameResponse {
+        access_token: access_token.token.clone(),
+        session_info: make_session_info(&access_token, &user.username, &state.server_id),
+        server_id: state.server_id.clone(),
+        user: make_user(&user, &state.server_id),
+    };
+
+    Ok(Json(response))
+}
+
+/// POST /Users/AuthenticateWithQuickConnect
+pub async fn authenticate_with_quick_connect(
+    State(state): State<JellyfinAuthState>,
+    headers: HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    if !state.quick_connect {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+
+    let secret = match body.get("Secret").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => return StatusCode::BAD_REQUEST.into_response(),
+    };
+
+    let qc = match state.repo.get_quick_connect_by_secret(&secret).await {
+        Ok(q) => q,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    if !qc.authorized || qc.user_id.is_empty() {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    // Check not expired
+    let age = chrono::Utc::now() - qc.created;
+    if age.num_minutes() > 10 {
+        return StatusCode::GONE.into_response();
+    }
+
+    let user = match state.repo.get_user_by_id(&qc.user_id).await {
+        Ok(u) => u,
+        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+    };
+
+    let emby_header = parse_auth_header(&headers);
+    let access_token = match create_new_token(&state.repo, &user.id, emby_header.as_ref()).await {
+        Ok(t) => t,
+        Err(s) => return s.into_response(),
+    };
+
+    let response = AuthenticateByNameResponse {
+        access_token: access_token.token.clone(),
+        session_info: make_session_info(&access_token, &user.username, &state.server_id),
+        server_id: state.server_id.clone(),
+        user: make_user(&user, &state.server_id),
+    };
+
+    Json(response).into_response()
 }
 
 /// GET /Users - Get all users
@@ -337,58 +460,6 @@ pub async fn users_policy_post(
         Ok(_) => StatusCode::NO_CONTENT,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
-}
-
-/// GET /Users/{id}/Views - Get user views (libraries)
-pub async fn user_views(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-    AxumPath(_user_id): AxumPath<String>,
-) -> Result<Json<QueryResult<BaseItemDto>>, StatusCode> {
-    let items = make_jfcollection_root_overview(&state, &token.user_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(QueryResult {
-        total_record_count: items.len() as i32,
-        start_index: 0,
-        items,
-    }))
-}
-
-/// GET /UserViews - Get user views (libraries) with query param
-pub async fn user_views_query(
-    Extension(token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-    Query(_query): Query<UserViewsQuery>,
-) -> Result<Json<QueryResult<BaseItemDto>>, StatusCode> {
-    let items = make_jfcollection_root_overview(&state, &token.user_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(QueryResult {
-        total_record_count: items.len() as i32,
-        start_index: 0,
-        items,
-    }))
-}
-
-/// GET /Users/{id}/GroupingOptions - Get grouping options
-pub async fn user_grouping_options(
-    Extension(_token): Extension<model::AccessToken>,
-    State(state): State<JellyfinState>,
-    AxumPath(_user_id): AxumPath<String>,
-) -> Result<Json<Vec<NameGuidPair>>, StatusCode> {
-    let mut options = Vec::new();
-    for c in state.collections.get_collections() {
-        if let Ok(item) = make_jfitem_collection(&state, &c.id) {
-            options.push(NameGuidPair {
-                name: item.name,
-                id: item.id,
-            });
-        }
-    }
-    Ok(Json(options))
 }
 
 /// Helper: Make User from database model
