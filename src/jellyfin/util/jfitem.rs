@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Result};
 use chrono::Utc;
 use tracing::warn;
 
@@ -25,10 +25,6 @@ const ITEM_TYPE_SHOW: &str = "Series";
 const ITEM_TYPE_SEASON: &str = "Season";
 const ITEM_TYPE_EPISODE: &str = "Episode";
 const ITEM_TYPE_PLAYLIST: &str = "Playlist";
-const ITEM_TYPE_GENRE: &str = "Genre";
-const ITEM_TYPE_STUDIO: &str = "Studio";
-#[allow(dead_code)]
-const ITEM_TYPE_PERSON: &str = "Person";
 
 const TICKS_TO_SECONDS: i64 = 10_000_000;
 
@@ -97,46 +93,6 @@ pub fn get_items_all(state: &JellyfinState) -> Vec<Item> {
     items
 }
 
-/// Collect items matching a genre ID across all collections.
-pub fn get_items_by_genre(
-    state: &JellyfinState,
-    genre_id: &str,
-) -> Vec<Item> {
-    let mut items = Vec::new();
-    for c in state.collections.get_collections() {
-        for item in c.items {
-            let matches = item
-                .genres()
-                .iter()
-                .any(|g| id_hash_prefix(ITEM_PREFIX_GENRE, g) == genre_id);
-            if matches {
-                items.push(item);
-            }
-        }
-    }
-    items
-}
-
-/// Collect items matching a studio ID across all collections.
-pub fn get_items_by_studio(
-    state: &JellyfinState,
-    studio_id: &str,
-) -> Vec<Item> {
-    let mut items = Vec::new();
-    for c in state.collections.get_collections() {
-        for item in c.items {
-            let matches = item
-                .studios()
-                .iter()
-                .any(|s| id_hash_prefix(ITEM_PREFIX_STUDIO, s) == studio_id);
-            if matches {
-                items.push(item);
-            }
-        }
-    }
-    items
-}
-
 /// Convert a slice of Items to BaseItemDtos.
 pub async fn convert_items_to_dtos(
     items: &[Item],
@@ -151,86 +107,6 @@ pub async fn convert_items_to_dtos(
         }
     }
     dtos
-}
-
-// ---------------------------------------------------------------------------
-// Main API functions
-// ---------------------------------------------------------------------------
-
-/// get_jfitems_by_parent_id returns DTOs for virtual/hierarchical parent IDs
-/// (favorites, playlists, show→seasons, season→episodes).
-/// Collection-level, genre, and studio queries use the Item pipeline instead.
-pub async fn get_jfitems_by_parent_id(state: &JellyfinState, user_id: &str, parent_id: &str) -> Result<Vec<JFItem>> {
-    // List favorites collection items requested?
-    if is_jf_collection_favorites_id(parent_id) {
-        return make_jfitem_favorites_overview(state, user_id)
-            .await
-            .with_context(|| "could not find favorites collection");
-    }
-
-    // List of playlists requested?
-    if is_jf_collection_playlist_id(parent_id) {
-        return make_jfitem_playlist_overview(state, user_id)
-            .await
-            .with_context(|| "could not find playlist collection");
-    }
-
-    // Specific playlist requested?
-    if is_jf_playlist_id(parent_id) {
-        return make_jfitem_playlist_itemlist(state, user_id, parent_id)
-            .await
-            .with_context(|| "could not find playlist");
-    }
-
-    // Check if parent_id is a show or season to generate overviews
-    if let Some((_, item)) = state.collections.get_item_by_id(parent_id) {
-        match item {
-            Item::Show(show) => {
-                return make_jfitem_seasons_overview(state, user_id, &show)
-                    .await
-                    .with_context(|| "could not find parent show");
-            }
-            Item::Season(season) => {
-                return make_jfitem_episodes_overview(state, user_id, &season)
-                    .await
-                    .with_context(|| "could not find season");
-            }
-            _ => {
-                warn!("get_jfitems_by_parent_id: unsupported parent_id {}", parent_id);
-                bail!("unsupported parent_id type");
-            }
-        }
-    }
-
-    bail!("parent_id not found")
-}
-
-/// make_jfitem_by_id creates a JFItem based on the provided item_id.
-pub async fn make_jfitem_by_id(state: &JellyfinState, user_id: &str, item_id: &str) -> Result<JFItem> {
-    // Handle special items first
-    if is_jf_root_id(item_id) {
-        return make_jfitem_root(state, user_id).await;
-    }
-    // Try special collection items first, as they have the same prefix as regular collections
-    if is_jf_collection_favorites_id(item_id) {
-        return make_jfitem_collection_favorites(state, user_id).await;
-    }
-    if is_jf_collection_playlist_id(item_id) {
-        return make_jfitem_collection_playlist(state, user_id).await;
-    }
-    if is_jf_collection_id(item_id) {
-        return make_jfitem_collection(state, item_id);
-    }
-    if is_jf_playlist_id(item_id) {
-        return make_jfitem_playlist(state, user_id, item_id).await;
-    }
-
-    // Try to fetch individual item: movie, show, season, episode
-    let (_, item) = state
-        .collections
-        .get_item_by_id(item_id)
-        .ok_or_else(|| anyhow!("item not found"))?;
-    make_jfitem(state, user_id, &item).await
 }
 
 /// make_jfitem dispatches to the correct make function based on item type.
@@ -378,25 +254,6 @@ pub async fn make_jfitem_collection_favorites(state: &JellyfinState, user_id: &s
     Ok(item)
 }
 
-/// make_jfitem_favorites_overview creates a list of favorite items.
-async fn make_jfitem_favorites_overview(state: &JellyfinState, user_id: &str) -> Result<Vec<JFItem>> {
-    let favorite_ids = state.repo.get_favorites(user_id).await?;
-    let mut items = Vec::new();
-    for item_id in &favorite_ids {
-        if let Some((_, item)) = state.collections.get_item_by_id(item_id) {
-            // We only add movies and shows in favorites
-            match &item {
-                Item::Movie(_) | Item::Show(_) => match make_jfitem(state, user_id, &item).await {
-                    Ok(jfitem) => items.push(jfitem),
-                    Err(e) => warn!("make_jfitem_favorites_overview: {}", e),
-                },
-                _ => {}
-            }
-        }
-    }
-    Ok(items)
-}
-
 /// make_jfitem_collection_playlist creates a top level collection item
 /// representing all playlists of the user.
 pub async fn make_jfitem_collection_playlist(state: &JellyfinState, user_id: &str) -> Result<JFItem> {
@@ -439,7 +296,7 @@ pub async fn make_jfitem_collection_playlist(state: &JellyfinState, user_id: &st
 }
 
 /// make_jfitem_playlist creates a playlist item.
-async fn make_jfitem_playlist(state: &JellyfinState, user_id: &str, playlist_id: &str) -> Result<JFItem> {
+pub(crate) async fn make_jfitem_playlist(state: &JellyfinState, user_id: &str, playlist_id: &str) -> Result<JFItem> {
     let playlist = state.repo.get_playlist(user_id, playlist_id).await?;
 
     #[rustfmt::skip]
@@ -475,21 +332,6 @@ pub async fn make_jfitem_playlist_overview(state: &JellyfinState, user_id: &str)
     for id in &playlist_ids {
         if let Ok(playlist_item) = make_jfitem_playlist(state, user_id, id).await {
             items.push(playlist_item);
-        }
-    }
-    Ok(items)
-}
-
-/// make_jfitem_playlist_itemlist creates an item list of one playlist of the user.
-async fn make_jfitem_playlist_itemlist(state: &JellyfinState, user_id: &str, playlist_id: &str) -> Result<Vec<JFItem>> {
-    let playlist = state.repo.get_playlist(user_id, playlist_id).await?;
-    let mut items = Vec::new();
-    for item_id in &playlist.item_ids {
-        if let Some((_, item)) = state.collections.get_item_by_id(item_id) {
-            match make_jfitem(state, user_id, &item).await {
-                Ok(jfitem) => items.push(jfitem),
-                Err(e) => warn!("make_jfitem_playlist_itemlist: {}", e),
-            }
         }
     }
     Ok(items)
@@ -916,54 +758,6 @@ pub async fn make_jfitem_episode(state: &JellyfinState, user_id: &str, episode: 
     Ok(item)
 }
 
-/// make_jfitem_genre creates a genre item.
-pub fn make_jfitem_genre(state: &JellyfinState, genre: &str) -> JFItem {
-    let genre_id = id_hash_prefix(ITEM_PREFIX_GENRE, genre);
-
-    // Try to get actual genre item count from collections
-    let mut child_count = 1;
-    for c in state.collections.get_collections() {
-        let counts = c.genre_count();
-        if let Some(&count) = counts.get(&genre_id) {
-            child_count = count as i32;
-        }
-    }
-
-    JFItem {
-        id: genre_id.clone(),
-        server_id: state.server_id.clone(),
-        item_type: ITEM_TYPE_GENRE.to_string(),
-        name: genre.to_string(),
-        sort_name: Some(genre.to_string()),
-        etag: Some(genre_id),
-        date_created: Some(Utc::now()),
-        premiere_date: Some(Utc::now()),
-        location_type: Some("FileSystem".to_string()),
-        media_type: Some("Unknown".to_string()),
-        child_count: Some(child_count),
-        ..Default::default()
-    }
-}
-
-/// make_jfitem_studio creates a studio item.
-pub fn make_jfitem_studio(state: &JellyfinState, studio: &str) -> JFItem {
-    let studio_id = id_hash_prefix(ITEM_PREFIX_STUDIO, studio);
-    JFItem {
-        id: studio_id.clone(),
-        server_id: state.server_id.clone(),
-        item_type: ITEM_TYPE_STUDIO.to_string(),
-        name: studio.to_string(),
-        sort_name: Some(studio.to_string()),
-        etag: Some(studio_id),
-        date_created: Some(Utc::now()),
-        premiere_date: Some(Utc::now()),
-        location_type: Some("FileSystem".to_string()),
-        media_type: Some("Unknown".to_string()),
-        user_data: Some(UserItemDataDto::default()),
-        ..Default::default()
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Helper functions
 // ---------------------------------------------------------------------------
@@ -1014,7 +808,7 @@ pub fn make_jf_userdata(user_id: &str, item_id: &str, data: Option<&DbUserData>)
 }
 
 /// make_media_source creates the media source info for an item.
-pub(super) fn make_media_source(
+pub(crate) fn make_media_source(
     item_id: &str,
     file_name: &str,
     file_size: i64,
@@ -1155,45 +949,6 @@ fn make_jf_media_streams(metadata: &crate::collection::Metadata) -> Vec<MediaStr
     };
 
     vec![video_stream, audio_stream]
-}
-
-pub fn make_jf_item_person(person: &crate::database::model::Person, server_id: &str) -> BaseItemDto {
-    let person_id = id_hash_prefix(ITEM_PREFIX_PERSON, &person.name);
-    let mut dto = BaseItemDto {
-        id: person_id.clone(),
-        name: person.name.clone(),
-        server_id: server_id.to_string(),
-        item_type: "Person".to_string(),
-        etag: Some(person_id.clone()),
-        overview: Some(person.bio.clone()),
-        date_created: Some(person.date_of_birth),
-        premiere_date: Some(person.date_of_birth),
-        location_type: Some("FileSystem".to_string()),
-        media_type: Some("Unknown".to_string()),
-        play_access: Some("Full".to_string()),
-        ..BaseItemDto::default()
-    };
-
-    if !person.place_of_birth.is_empty() {
-        dto.production_locations = vec![person.place_of_birth.clone()];
-    }
-
-    if !person.poster_url.is_empty() {
-        let mut image_tags = HashMap::new();
-        image_tags.insert(
-            "Primary".to_string(),
-            person.poster_url.clone(),
-        );
-        dto.image_tags = image_tags;
-    }
-
-    dto.user_data = Some(UserItemDataDto {
-        key: format!("Person-{}", person.name),
-        item_id: person_id,
-        ..UserItemDataDto::default()
-    });
-
-    dto
 }
 
 /// make_runtime_ticks_from_metadata converts metadata duration to Jellyfin runtime ticks.

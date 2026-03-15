@@ -5,10 +5,12 @@ use axum::{
 };
 use std::collections::HashMap;
 
+use chrono::Utc;
+
 use super::jellyfin::JellyfinState;
-use super::jfitem::*;
 use super::types::*;
 use crate::database::model::AccessToken;
+use crate::idhash::*;
 
 /// GET /Studios
 pub async fn studios_all(
@@ -49,4 +51,23 @@ pub async fn studio_details(
     Path(name): Path<String>,
 ) -> Json<BaseItemDto> {
     Json(make_jfitem_studio(&state, &name))
+}
+
+/// make_jfitem_studio creates a studio item.
+pub fn make_jfitem_studio(state: &JellyfinState, studio: &str) -> BaseItemDto {
+    let studio_id = id_hash_prefix(ITEM_PREFIX_STUDIO, studio);
+    BaseItemDto {
+        id: studio_id.clone(),
+        server_id: state.server_id.clone(),
+        item_type: "Studio".to_string(),
+        name: studio.to_string(),
+        sort_name: Some(studio.to_string()),
+        etag: Some(studio_id),
+        date_created: Some(Utc::now()),
+        premiere_date: Some(Utc::now()),
+        location_type: Some("FileSystem".to_string()),
+        media_type: Some("Unknown".to_string()),
+        user_data: Some(UserItemDataDto::default()),
+        ..Default::default()
+    }
 }

@@ -6,11 +6,14 @@ use axum::{
 };
 use chrono::Utc;
 
-use super::item::{apply_query_items_filter, apply_query_item_sorting, apply_query_item_pagination};
+use anyhow::anyhow;
+
+use super::util::item::{apply_query_items_filter, apply_query_item_sorting, apply_query_item_pagination};
 use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
 use crate::database::{AccessToken, UserData as DbUserData};
+use crate::idhash::*;
 
 /// GET /Items/{item} - Gets an item from a user's library.
 pub async fn item_details(
@@ -234,4 +237,32 @@ pub async fn user_favorite_items_delete_simple(
     } else {
         Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
+}
+
+/// make_jfitem_by_id creates a JFItem based on the provided item_id.
+pub async fn make_jfitem_by_id(state: &JellyfinState, user_id: &str, item_id: &str) -> anyhow::Result<BaseItemDto> {
+    // Handle special items first
+    if is_jf_root_id(item_id) {
+        return make_jfitem_root(state, user_id).await;
+    }
+    // Try special collection items first, as they have the same prefix as regular collections
+    if is_jf_collection_favorites_id(item_id) {
+        return make_jfitem_collection_favorites(state, user_id).await;
+    }
+    if is_jf_collection_playlist_id(item_id) {
+        return make_jfitem_collection_playlist(state, user_id).await;
+    }
+    if is_jf_collection_id(item_id) {
+        return make_jfitem_collection(state, item_id);
+    }
+    if is_jf_playlist_id(item_id) {
+        return make_jfitem_playlist(state, user_id, item_id).await;
+    }
+
+    // Try to fetch individual item: movie, show, season, episode
+    let (_, item) = state
+        .collections
+        .get_item_by_id(item_id)
+        .ok_or_else(|| anyhow!("item not found"))?;
+    make_jfitem(state, user_id, &item).await
 }

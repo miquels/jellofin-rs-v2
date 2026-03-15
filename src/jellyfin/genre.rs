@@ -6,10 +6,12 @@ use axum::{
 };
 use std::collections::HashMap;
 
+use chrono::Utc;
+
 use super::jellyfin::JellyfinState;
-use super::jfitem::*;
 use super::types::*;
 use crate::database::model::AccessToken;
+use crate::idhash::*;
 
 /// GET /Genres
 pub async fn genres_all(
@@ -54,5 +56,34 @@ pub async fn genre_details(
         Ok(Json(make_jfitem_genre(&state, &name)))
     } else {
         Err(StatusCode::NOT_FOUND)
+    }
+}
+
+/// make_jfitem_genre creates a genre item.
+pub fn make_jfitem_genre(state: &JellyfinState, genre: &str) -> BaseItemDto {
+    let genre_id = id_hash_prefix(ITEM_PREFIX_GENRE, genre);
+
+    // Try to get actual genre item count from collections
+    let mut child_count = 1;
+    for c in state.collections.get_collections() {
+        let counts = c.genre_count();
+        if let Some(&count) = counts.get(&genre_id) {
+            child_count = count as i32;
+        }
+    }
+
+    BaseItemDto {
+        id: genre_id.clone(),
+        server_id: state.server_id.clone(),
+        item_type: "Genre".to_string(),
+        name: genre.to_string(),
+        sort_name: Some(genre.to_string()),
+        etag: Some(genre_id),
+        date_created: Some(Utc::now()),
+        premiere_date: Some(Utc::now()),
+        location_type: Some("FileSystem".to_string()),
+        media_type: Some("Unknown".to_string()),
+        child_count: Some(child_count),
+        ..Default::default()
     }
 }

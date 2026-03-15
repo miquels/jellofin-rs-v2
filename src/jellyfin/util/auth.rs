@@ -4,15 +4,11 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use bcrypt::{hash, DEFAULT_COST};
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use crate::database::{model, Repository};
-use crate::idhash::id_hash;
-
-use super::types::*;
+use crate::database::Repository;
 
 static AUTH_HEADER_REGEX: OnceLock<Regex> = OnceLock::new();
 static AUTH_HEADER_REGEX_UNQUOTED: OnceLock<Regex> = OnceLock::new();
@@ -41,54 +37,6 @@ pub struct AuthSchemeValues {
     pub token: String,
     pub client: String,
     pub client_version: String,
-}
-
-/// Create and store a fresh access token
-pub(crate) async fn create_new_token(
-    repo: &Arc<dyn Repository>,
-    user_id: &str,
-    emby_header: Option<&AuthSchemeValues>,
-) -> Result<model::AccessToken, StatusCode> {
-    let mut access_token = model::AccessToken {
-        token: generate_random_token(),
-        user_id: user_id.to_string(),
-        device_name: String::new(),
-        device_id: String::new(),
-        application_name: String::new(),
-        application_version: String::new(),
-        remote_address: String::new(),
-        created: chrono::Utc::now(),
-        last_used: chrono::Utc::now(),
-    };
-    if let Some(h) = emby_header {
-        access_token.device_name = h.device.clone();
-        access_token.device_id = h.device_id.clone();
-        access_token.application_name = h.client.clone();
-        access_token.application_version = h.client_version.clone();
-    }
-    repo.upsert_access_token(&access_token)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(access_token)
-}
-
-/// Create a new user
-pub(crate) async fn create_user(repo: &Arc<dyn Repository>, username: &str, password: &str) -> Result<model::User, String> {
-    let hashed_password = hash(password, DEFAULT_COST).map_err(|e| e.to_string())?;
-
-    let user = model::User {
-        id: id_hash(username),
-        username: username.to_lowercase(),
-        password: hashed_password,
-        created: chrono::Utc::now(),
-        last_login: chrono::Utc::now(),
-        last_used: chrono::Utc::now(),
-        properties: model::UserProperties::default(),
-    };
-
-    repo.upsert_user(&user).await.map_err(|e| e.to_string())?;
-
-    Ok(user)
 }
 
 /// Parse MediaBrowser/Emby authorization header
@@ -153,33 +101,6 @@ pub(crate) fn generate_random_token() -> String {
     let mut rng = rand::thread_rng();
     let bytes: [u8; 16] = rng.gen();
     hex::encode(bytes)
-}
-
-/// Make SessionInfo from access token
-pub(crate) fn make_session_info(token: &model::AccessToken, username: &str, server_id: &str) -> SessionInfo {
-    SessionInfo {
-        play_state: PlayState::default(),
-        additional_users: Vec::new(),
-        capabilities: SessionResponseCapabilities::default(),
-        remote_end_point: token.remote_address.clone(),
-        playable_media_types: vec!["Video".to_string(), "Audio".to_string()],
-        id: token.token.clone(),
-        user_id: token.user_id.clone(),
-        user_name: username.to_string(),
-        client: token.application_name.clone(),
-        last_activity_date: token.last_used,
-        device_name: token.device_name.clone(),
-        device_id: token.device_id.clone(),
-        application_version: token.application_version.clone(),
-        is_active: true,
-        supports_media_control: false,
-        supports_remote_control: false,
-        server_id: server_id.to_string(),
-        supported_commands: Vec::new(),
-        has_custom_device_name: false,
-        now_playing_queue: Vec::new(),
-        now_playing_queue_full_items: Vec::new(),
-    }
 }
 
 /// Authentication middleware

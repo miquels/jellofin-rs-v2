@@ -6,7 +6,7 @@ use axum::{
 };
 use std::collections::HashMap;
 
-use super::item::{apply_query_items_filter, apply_query_item_sorting};
+use super::util::item::{apply_query_items_filter, apply_query_item_sorting};
 use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;

@@ -1,20 +1,19 @@
 
-pub mod auth;
-pub use auth::*;
+pub mod util;
+pub use util::auth;
+pub use util::error;
+pub use util::jellyfin;
+pub use util::jfitem;
+pub use util::*;
+
 pub mod branding;
 pub use branding::*;
 pub mod devices;
 pub use devices::*;
 pub mod displayprefs;
 pub use displayprefs::*;
-pub mod error;
-pub use error::*;
 pub mod filter;
 pub use filter::*;
-pub mod jellyfin;
-pub use jellyfin::*;
-pub mod jfitem;
-pub use jfitem::*;
 pub mod librarystructure;
 pub use librarystructure::*;
 pub mod mediainfo;
