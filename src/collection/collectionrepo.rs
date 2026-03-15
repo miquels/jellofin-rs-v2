@@ -1,8 +1,10 @@
-use arc_swap::ArcSwap;
-use rand::seq::SliceRandom;
 use std::collections::{HashMap, HashSet};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
+
+use arc_swap::ArcSwap;
+use rand::seq::SliceRandom;
 use tracing::info;
 
 use super::collection::{Collection, CollectionType};
@@ -34,7 +36,12 @@ impl CollectionRepo {
         let ct = CollectionType::from_str(collection_type)
             .ok_or_else(|| format!("Unknown collection type: {}", collection_type))?;
 
-        let collection_id = id.unwrap_or_else(|| id_hash_prefix(ITEM_PREFIX_COLLECTION, &name));
+        let collection_id = match id.as_ref() {
+            None => id_hash_prefix(ITEM_PREFIX_COLLECTION, &name),
+            Some(s) if s.starts_with(ITEM_PREFIX_COLLECTION) => s.to_string(),
+            Some(s) if u64::from_str(s).is_ok() => id_hash_prefix(ITEM_PREFIX_COLLECTION, s),
+            Some(s) => format!("{}{}", ITEM_PREFIX_COLLECTION, s),
+        };
 
         info!(
             "Adding collection {}, id: {}, type: {}, directory: {}",
