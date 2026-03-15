@@ -139,6 +139,7 @@ pub async fn user_favorite_items_post(
     }
 }
 
+/// POST /UserFavoriteItems/{item}
 pub async fn user_favorite_items_post_simple(
     Extension(token): Extension<AccessToken>,
     State(state): State<JellyfinState>,
@@ -171,7 +172,6 @@ pub async fn user_favorite_items_post_simple(
     }
 }
 
-/// DELETE /UserFavoriteItems/{item}
 /// DELETE /Users/{user}/FavoriteItems/{item}
 pub async fn user_favorite_items_delete(
     Extension(token): Extension<AccessToken>,
@@ -180,6 +180,7 @@ pub async fn user_favorite_items_delete(
 ) -> Result<Json<UserItemDataDto>, StatusCode> {
     let item_id = &params.1;
 
+    // TODO: move this to src/database/
     let mut playstate = state
         .repo
         .get_user_data(&token.user_id, item_id)
@@ -207,6 +208,7 @@ pub async fn user_favorite_items_delete(
     }
 }
 
+/// DELETE /UserFavoriteItems/{item}
 pub async fn user_favorite_items_delete_simple(
     Extension(token): Extension<AccessToken>,
     State(state): State<JellyfinState>,
@@ -239,8 +241,8 @@ pub async fn user_favorite_items_delete_simple(
     }
 }
 
-/// make_jfitem_by_id creates a JFItem based on the provided item_id.
-pub async fn make_jfitem_by_id(state: &JellyfinState, user_id: &str, item_id: &str) -> anyhow::Result<BaseItemDto> {
+// make_jfitem_by_id creates a JFItem based on the provided item_id.
+async fn make_jfitem_by_id(state: &JellyfinState, user_id: &str, item_id: &str) -> anyhow::Result<BaseItemDto> {
     // Handle special items first
     if is_jf_root_id(item_id) {
         return make_jfitem_root(state, user_id).await;

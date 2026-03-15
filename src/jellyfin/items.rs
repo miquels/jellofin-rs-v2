@@ -199,7 +199,7 @@ pub async fn users_item_userdata_simple(
 // Filtering
 // ---------------------------------------------------------------------------
 
-pub(crate) fn apply_items_filter(items: Vec<BaseItemDto>, query_params: &HashMap<String, String>) -> Vec<BaseItemDto> {
+fn apply_items_filter(items: Vec<BaseItemDto>, query_params: &HashMap<String, String>) -> Vec<BaseItemDto> {
     items
         .into_iter()
         .filter(|i| apply_item_filter(i, query_params))
@@ -317,7 +317,7 @@ fn apply_fields_filter(items: &mut Vec<BaseItemDto>, query_params: &HashMap<Stri
 }
 
 /// Collect items matching a genre ID across all collections.
-pub fn get_items_by_genre(
+fn get_items_by_genre(
     state: &JellyfinState,
     genre_id: &str,
 ) -> Vec<Item> {
@@ -337,7 +337,7 @@ pub fn get_items_by_genre(
 }
 
 /// Collect items matching a studio ID across all collections.
-pub fn get_items_by_studio(
+fn get_items_by_studio(
     state: &JellyfinState,
     studio_id: &str,
 ) -> Vec<Item> {
@@ -359,7 +359,7 @@ pub fn get_items_by_studio(
 /// get_jfitems_by_parent_id returns DTOs for virtual/hierarchical parent IDs
 /// (favorites, playlists, show→seasons, season→episodes).
 /// Collection-level, genre, and studio queries use the Item pipeline instead.
-pub async fn get_jfitems_by_parent_id(state: &JellyfinState, user_id: &str, parent_id: &str) -> Result<Vec<BaseItemDto>> {
+async fn get_jfitems_by_parent_id(state: &JellyfinState, user_id: &str, parent_id: &str) -> Result<Vec<BaseItemDto>> {
     // List favorites collection items requested?
     if is_jf_collection_favorites_id(parent_id) {
         return make_jfitem_favorites_overview(state, user_id)

@@ -60,7 +60,7 @@ pub async fn genre_details(
 }
 
 /// make_jfitem_genre creates a genre item.
-pub fn make_jfitem_genre(state: &JellyfinState, genre: &str) -> BaseItemDto {
+fn make_jfitem_genre(state: &JellyfinState, genre: &str) -> BaseItemDto {
     let genre_id = id_hash_prefix(ITEM_PREFIX_GENRE, genre);
 
     // Try to get actual genre item count from collections

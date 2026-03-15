@@ -465,7 +465,7 @@ pub async fn users_policy_post(
 }
 
 /// Helper: Make User from database model
-pub fn make_user(user: &model::User, server_id: &str) -> User {
+fn make_user(user: &model::User, server_id: &str) -> User {
     let p = &user.properties;
     User {
         name: user.username.clone(),
@@ -531,7 +531,7 @@ pub fn make_user(user: &model::User, server_id: &str) -> User {
 }
 
 /// Async version: checks DB for profile image and sets primary_image_tag.
-pub async fn make_user_full(state: &JellyfinState, user: &model::User) -> User {
+async fn make_user_full(state: &JellyfinState, user: &model::User) -> User {
     let mut dto = make_user(user, &state.server_id);
     if state.repo.has_image(&user.id, "Primary").await.ok().flatten().is_some() {
         dto.primary_image_tag = Some(user.id.clone());
@@ -540,7 +540,7 @@ pub async fn make_user_full(state: &JellyfinState, user: &model::User) -> User {
 }
 
 /// Create and store a fresh access token
-pub(crate) async fn create_new_token(
+async fn create_new_token(
     repo: &Arc<dyn Repository>,
     user_id: &str,
     emby_header: Option<&AuthSchemeValues>,
@@ -569,7 +569,7 @@ pub(crate) async fn create_new_token(
 }
 
 /// Create a new user
-pub(crate) async fn create_user(repo: &Arc<dyn Repository>, username: &str, password: &str) -> Result<model::User, String> {
+async fn create_user(repo: &Arc<dyn Repository>, username: &str, password: &str) -> Result<model::User, String> {
     let hashed_password = hash(password, DEFAULT_COST).map_err(|e| e.to_string())?;
 
     let user = model::User {
@@ -588,7 +588,7 @@ pub(crate) async fn create_user(repo: &Arc<dyn Repository>, username: &str, pass
 }
 
 /// Make SessionInfo from access token
-pub(crate) fn make_session_info(token: &model::AccessToken, username: &str, server_id: &str) -> SessionInfo {
+fn make_session_info(token: &model::AccessToken, username: &str, server_id: &str) -> SessionInfo {
     SessionInfo {
         play_state: PlayState::default(),
         additional_users: Vec::new(),

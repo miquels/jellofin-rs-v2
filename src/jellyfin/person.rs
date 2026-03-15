@@ -43,7 +43,7 @@ pub async fn person_details(
     Ok(Json(make_jf_item_person(&db_person, &state.server_id)))
 }
 
-pub fn make_jf_item_person(person: &crate::database::model::Person, server_id: &str) -> BaseItemDto {
+fn make_jf_item_person(person: &crate::database::model::Person, server_id: &str) -> BaseItemDto {
     let person_id = id_hash_prefix(ITEM_PREFIX_PERSON, &person.name);
     let mut dto = BaseItemDto {
         id: person_id.clone(),
