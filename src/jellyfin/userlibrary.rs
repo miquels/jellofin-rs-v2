@@ -12,6 +12,7 @@ use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
 use super::util::item::{apply_query_item_pagination, apply_query_item_sorting, apply_query_items_filter};
+use crate::collection::Item;
 use crate::database::{AccessToken, UserData as DbUserData};
 use crate::idhash::*;
 
@@ -240,24 +241,65 @@ pub async fn user_favorite_items_delete_simple(
     }
 }
 
-// make_jfitem_by_id creates a JFItem based on the provided item_id.
+// make_jfitem_by_id creates a BaseItemDto based on the provided item_id.
 async fn make_jfitem_by_id(state: &JellyfinState, user_id: &str, item_id: &str) -> anyhow::Result<BaseItemDto> {
+    use crate::collection::{CollectionFolder, PlaylistItem, UserView};
+
     // Handle special items first
     if is_jf_root_id(item_id) {
         return make_jfitem_root(state, user_id).await;
     }
-    // Try special collection items first, as they have the same prefix as regular collections
+
+    // Try special collection items — construct native Item, then convert
     if is_jf_collection_favorites_id(item_id) {
-        return make_jfitem_collection_favorites(state, user_id).await;
+        let fav_count = state.repo.get_favorites(user_id).await.map(|f| f.len() as i32).ok();
+        let item = Item::UserView(UserView {
+            id: String::from(FAVORITES_COLLECTION_ID),
+            name: "Favorites".to_string(),
+            collection_type: "playlists".to_string(),
+            child_count: fav_count,
+        });
+        return make_jfitem(state, user_id, &item).await;
     }
     if is_jf_collection_playlist_id(item_id) {
-        return make_jfitem_collection_playlist(state, user_id).await;
+        let mut item_count = 0i32;
+        if let Ok(playlist_ids) = state.repo.get_playlists(user_id).await {
+            for id in &playlist_ids {
+                if let Ok(playlist) = state.repo.get_playlist(user_id, id).await {
+                    item_count += playlist.item_ids.len() as i32;
+                }
+            }
+        }
+        let item = Item::UserView(UserView {
+            id: String::from(PLAYLIST_COLLECTION_ID),
+            name: "Playlists".to_string(),
+            collection_type: "playlists".to_string(),
+            child_count: Some(item_count),
+        });
+        return make_jfitem(state, user_id, &item).await;
     }
     if is_jf_collection_id(item_id) {
-        return make_jfitem_collection(state, item_id);
+        let c = state
+            .collections
+            .get_collection(item_id)
+            .ok_or_else(|| anyhow!("collection not found"))?;
+        let item = Item::CollectionFolder(CollectionFolder {
+            id: c.id.clone(),
+            name: c.name.clone(),
+            collection_type: c.collection_type,
+            child_count: c.items.len() as i32,
+            genres: c.details().genres,
+        });
+        return make_jfitem(state, user_id, &item).await;
     }
     if is_jf_playlist_id(item_id) {
-        return make_jfitem_playlist(state, user_id, item_id).await;
+        let playlist = state.repo.get_playlist(user_id, item_id).await?;
+        let item = Item::Playlist(PlaylistItem {
+            id: playlist.id.clone(),
+            name: playlist.name.clone(),
+            child_count: playlist.item_ids.len() as i32,
+        });
+        return make_jfitem(state, user_id, &item).await;
     }
 
     // Try to fetch individual item: movie, show, season, episode

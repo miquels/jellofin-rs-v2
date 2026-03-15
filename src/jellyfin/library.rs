@@ -83,14 +83,22 @@ pub async fn item_ancestors(
         .get_item_by_id(&item_id)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let collection_item =
-        make_jfitem_collection(&state, &collection.id).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let cf_item = crate::collection::Item::CollectionFolder(crate::collection::CollectionFolder {
+        id: collection.id.clone(),
+        name: collection.name.clone(),
+        collection_type: collection.collection_type,
+        child_count: collection.items.len() as i32,
+        genres: collection.details().genres,
+    });
+    let collection_dto = make_jfitem(&state, &token.user_id, &cf_item)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let root_item = make_jfitem_root(&state, &token.user_id)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Json(vec![collection_item, root_item]))
+    Ok(Json(vec![collection_dto, root_item]))
 }
 
 /// GET /Items/{item}/ThemeMedia - Get theme media (not implemented)

@@ -3,6 +3,7 @@ use regex::Regex;
 use std::sync::OnceLock;
 use std::time::Duration;
 
+use super::collection::CollectionType;
 use super::metadata::Metadata;
 use crate::database::UserData as DbUserData;
 
@@ -163,6 +164,10 @@ pub struct Episode {
     pub id: String,
     pub collection_id: String,
     pub user_data: Option<Box<DbUserData>>,
+    /// show_id is the ID of the parent show.
+    pub show_id: String,
+    /// season_id is the ID of the parent season.
+    pub season_id: String,
     /// name is the human-readable name of the episode.
     pub name: String,
     /// path is the directory of the show, relative to collection root. (e.g. Casablanca)
@@ -197,6 +202,33 @@ impl Episode {
     }
 }
 
+/// CollectionFolder represents a media library collection at the root overview level.
+#[derive(Debug, Clone)]
+pub struct CollectionFolder {
+    pub id: String,
+    pub name: String,
+    pub collection_type: CollectionType,
+    pub child_count: i32,
+    pub genres: Vec<String>,
+}
+
+/// UserView represents a virtual collection view (e.g. Favorites, Playlists).
+#[derive(Debug, Clone)]
+pub struct UserView {
+    pub id: String,
+    pub name: String,
+    pub collection_type: String,
+    pub child_count: Option<i32>,
+}
+
+/// PlaylistItem represents a user playlist as a native item.
+#[derive(Debug, Clone)]
+pub struct PlaylistItem {
+    pub id: String,
+    pub name: String,
+    pub child_count: i32,
+}
+
 /// Item enum - replaces Go interface
 /// In Go, Movie, Show, Season, and Episode all implement the Item interface
 #[derive(Debug, Clone)]
@@ -205,6 +237,9 @@ pub enum Item {
     Show(Show),
     Season(Season),
     Episode(Episode),
+    CollectionFolder(CollectionFolder),
+    UserView(UserView),
+    Playlist(PlaylistItem),
 }
 
 impl Item {
@@ -214,6 +249,9 @@ impl Item {
             Item::Show(s) => s.id.clone(),
             Item::Season(s) => s.id.clone(),
             Item::Episode(e) => e.id.clone(),
+            Item::CollectionFolder(c) => c.id.clone(),
+            Item::UserView(u) => u.id.clone(),
+            Item::Playlist(p) => p.id.clone(),
         }
     }
 
@@ -223,6 +261,7 @@ impl Item {
             Item::Show(s) => &s.collection_id,
             Item::Season(s) => &s.collection_id,
             Item::Episode(e) => &e.collection_id,
+            _ => "",
         }
     }
 
@@ -240,6 +279,21 @@ impl Item {
             }
             Item::Season(s) => s.collection_id = id,
             Item::Episode(e) => e.collection_id = id,
+            _ => {}
+        }
+    }
+
+    /// Populate show_id and season_id on all nested episodes within a Show.
+    pub fn populate_hierarchy_ids(&mut self) {
+        if let Item::Show(s) = self {
+            let show_id = s.id.clone();
+            for season in &mut s.seasons {
+                let season_id = season.id.clone();
+                for episode in &mut season.episodes {
+                    episode.show_id = show_id.clone();
+                    episode.season_id = season_id.clone();
+                }
+            }
         }
     }
 
@@ -249,6 +303,7 @@ impl Item {
             Item::Show(s) => s.user_data.as_deref(),
             Item::Season(s) => s.user_data.as_deref(),
             Item::Episode(e) => e.user_data.as_deref(),
+            _ => None,
         }
     }
 
@@ -258,6 +313,7 @@ impl Item {
             Item::Show(s) => s.user_data = Some(Box::new(ud)),
             Item::Season(s) => s.user_data = Some(Box::new(ud)),
             Item::Episode(e) => e.user_data = Some(Box::new(ud)),
+            _ => {}
         }
     }
 
@@ -267,6 +323,9 @@ impl Item {
             Item::Show(s) => s.name.clone(),
             Item::Season(s) => s.name.clone(),
             Item::Episode(e) => e.name.clone(),
+            Item::CollectionFolder(c) => c.name.clone(),
+            Item::UserView(u) => u.name.clone(),
+            Item::Playlist(p) => p.name.clone(),
         }
     }
 
@@ -276,6 +335,7 @@ impl Item {
             Item::Show(s) => Some(s.duration()),
             Item::Season(s) => Some(s.duration()),
             Item::Episode(e) => Some(e.duration()),
+            _ => None,
         }
     }
 
@@ -286,6 +346,9 @@ impl Item {
             Item::Show(_) => "Series",
             Item::Season(_) => "Season",
             Item::Episode(_) => "Episode",
+            Item::CollectionFolder(_) => "CollectionFolder",
+            Item::UserView(_) => "UserView",
+            Item::Playlist(_) => "Playlist",
         }
     }
 
@@ -296,6 +359,9 @@ impl Item {
             Item::Show(s) => &s.sort_name,
             Item::Season(s) => &s.name,
             Item::Episode(e) => &e.sort_name,
+            Item::CollectionFolder(c) => c.collection_type.as_str(),
+            Item::UserView(u) => &u.collection_type,
+            Item::Playlist(p) => &p.name,
         }
     }
 
@@ -304,8 +370,8 @@ impl Item {
         match self {
             Item::Movie(m) => m.created,
             Item::Show(s) => s.first_video,
-            Item::Season(_) => DateTime::<Utc>::default(),
             Item::Episode(e) => e.created,
+            _ => DateTime::<Utc>::default(),
         }
     }
 
@@ -314,8 +380,7 @@ impl Item {
         match self {
             Item::Movie(m) => m.metadata.premiered.or(Some(m.created)),
             Item::Show(s) => s.metadata.premiered.or(Some(s.first_video)),
-            Item::Season(_) => None,
-            Item::Episode(_) => None,
+            _ => None,
         }
     }
 
@@ -342,6 +407,7 @@ impl Item {
         match self {
             Item::Movie(m) => &m.metadata.genres,
             Item::Show(s) => &s.metadata.genres,
+            Item::CollectionFolder(c) => &c.genres,
             _ => &[],
         }
     }
@@ -351,11 +417,11 @@ impl Item {
         match self {
             Item::Movie(m) => &m.metadata,
             Item::Show(s) => &s.metadata,
-            Item::Season(_) => {
+            Item::Episode(e) => &e.metadata,
+            _ => {
                 static EMPTY: std::sync::OnceLock<Metadata> = std::sync::OnceLock::new();
                 EMPTY.get_or_init(Metadata::default)
             }
-            Item::Episode(e) => &e.metadata,
         }
     }
 
@@ -421,7 +487,32 @@ impl Item {
 
     /// Returns whether this item is a folder/container.
     pub fn is_folder(&self) -> bool {
-        matches!(self, Item::Show(_) | Item::Season(_))
+        matches!(
+            self,
+            Item::Show(_) | Item::Season(_) | Item::CollectionFolder(_) | Item::UserView(_) | Item::Playlist(_)
+        )
+    }
+
+    /// Returns the series (show) ID for this item, if applicable.
+    pub fn series_id(&self) -> Option<&str> {
+        match self {
+            Item::Episode(e) => Some(&e.show_id),
+            Item::Season(s) => {
+                // Seasons don't store show_id directly; return None
+                // (seasons are typically filtered by parent_id, not series_id)
+                let _ = s;
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns the season ID for this item, if applicable.
+    pub fn season_id(&self) -> Option<&str> {
+        match self {
+            Item::Episode(e) => Some(&e.season_id),
+            _ => None,
+        }
     }
 }
 
@@ -432,6 +523,9 @@ pub enum ItemRef<'a> {
     Show(&'a Show),
     Season(&'a Season),
     Episode(&'a Episode),
+    CollectionFolder(&'a CollectionFolder),
+    UserView(&'a UserView),
+    Playlist(&'a PlaylistItem),
 }
 
 /// makeSortName returns a name suitable for sorting.

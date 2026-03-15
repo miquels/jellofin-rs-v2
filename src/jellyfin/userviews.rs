@@ -21,9 +21,8 @@ pub async fn user_views(
     State(state): State<JellyfinState>,
     AxumPath(_user_id): AxumPath<String>,
 ) -> Result<Json<QueryResult<BaseItemDto>>, StatusCode> {
-    let items = make_jfcollection_root_overview(&state, &token.user_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let qitems = get_root_overview_items(&state, &token.user_id).await;
+    let items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;
 
     Ok(Json(QueryResult {
         total_record_count: items.len() as i32,
@@ -38,9 +37,8 @@ pub async fn user_views_query(
     State(state): State<JellyfinState>,
     Query(_query): Query<UserViewsQuery>,
 ) -> Result<Json<QueryResult<BaseItemDto>>, StatusCode> {
-    let items = make_jfcollection_root_overview(&state, &token.user_id)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let qitems = get_root_overview_items(&state, &token.user_id).await;
+    let items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;
 
     Ok(Json(QueryResult {
         total_record_count: items.len() as i32,
@@ -57,12 +55,10 @@ pub async fn user_grouping_options(
 ) -> Result<Json<Vec<NameGuidPair>>, StatusCode> {
     let mut options = Vec::new();
     for c in state.collections.get_collections() {
-        if let Ok(item) = make_jfitem_collection(&state, &c.id) {
-            options.push(NameGuidPair {
-                name: item.name,
-                id: item.id,
-            });
-        }
+        options.push(NameGuidPair {
+            name: c.name.clone(),
+            id: c.id.clone(),
+        });
     }
     Ok(Json(options))
 }

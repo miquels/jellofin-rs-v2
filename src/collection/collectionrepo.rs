@@ -385,6 +385,7 @@ impl CollectionRepo {
                             results.push(e.id.clone());
                         }
                     }
+                    _ => {}
                 }
             }
         }

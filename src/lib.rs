@@ -1,6 +1,5 @@
 pub mod collection;
 pub mod database;
-pub mod identicon;
 pub mod idhash;
 pub mod imageresize;
 pub mod jellyfin;

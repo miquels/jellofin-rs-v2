@@ -33,15 +33,15 @@ pub async fn video_stream_handler(
     let filename = match &item {
         crate::collection::Item::Movie(m) => &m.file_name,
         crate::collection::Item::Show(s) => &s.file_name,
-        crate::collection::Item::Season(_) => return StatusCode::NOT_FOUND.into_response(),
         crate::collection::Item::Episode(e) => &e.file_name,
+        _ => return StatusCode::NOT_FOUND.into_response(),
     };
 
     let path_str = match &item {
         crate::collection::Item::Movie(m) => &m.path,
         crate::collection::Item::Show(s) => &s.path,
-        crate::collection::Item::Season(_) => return StatusCode::NOT_FOUND.into_response(),
         crate::collection::Item::Episode(e) => &e.path,
+        _ => return StatusCode::NOT_FOUND.into_response(),
     };
 
     if filename.is_empty() {

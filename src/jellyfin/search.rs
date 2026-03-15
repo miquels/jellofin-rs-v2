@@ -21,12 +21,11 @@ pub async fn search_hints(
 ) -> Result<Json<SearchHintsResponse>, StatusCode> {
     if let Some(parent_id) = query_params.get("parentId") {
         if is_jf_collection_playlist_id(parent_id) {
-            let items = make_jfitem_playlist_overview(&state, &token.user_id)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let qitems = get_playlist_overview_items(&state, &token.user_id).await;
+            let items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;
             return Ok(Json(SearchHintsResponse {
                 search_hints: items,
-                total_record_count: 0,
+                total_record_count: qitems.len() as i32,
             }));
         }
     }

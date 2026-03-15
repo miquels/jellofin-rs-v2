@@ -6,6 +6,8 @@ pub mod jellyfin;
 pub use jellyfin::*;
 pub mod jfitem;
 pub use jfitem::*;
+pub mod identicon;
+pub use identicon::*;
 pub mod item;
 pub use item::*;
 

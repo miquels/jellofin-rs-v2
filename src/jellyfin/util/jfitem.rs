@@ -6,12 +6,10 @@ use tracing::warn;
 
 use super::jellyfin::JellyfinState;
 use super::types::*;
-use crate::collection::item::{Episode, Movie, Season, Show};
+use crate::collection::item::{CollectionFolder, Episode, Movie, PlaylistItem, Season, Show, UserView};
 use crate::collection::{CollectionType, Item};
 use crate::database::UserData as DbUserData;
 use crate::idhash::*;
-
-type JFItem = BaseItemDto;
 
 const COLLECTION_TYPE_MOVIES: &str = "movies";
 const COLLECTION_TYPE_TVSHOWS: &str = "tvshows";
@@ -84,6 +82,133 @@ pub fn get_items_all(state: &JellyfinState) -> Vec<Item> {
     items
 }
 
+/// Get root overview items (collections + favorites + playlists) as native Items.
+pub async fn get_root_overview_items(state: &JellyfinState, user_id: &str) -> Vec<Item> {
+    let mut items = Vec::new();
+
+    for c in state.collections.get_collections() {
+        items.push(Item::CollectionFolder(CollectionFolder {
+            id: c.id.clone(),
+            name: c.name.clone(),
+            collection_type: c.collection_type,
+            child_count: c.items.len() as i32,
+            genres: c.details().genres,
+        }));
+    }
+
+    // Favorites
+    let fav_count = state.repo.get_favorites(user_id).await.map(|f| f.len() as i32).ok();
+    items.push(Item::UserView(UserView {
+        id: String::from(FAVORITES_COLLECTION_ID),
+        name: "Favorites".to_string(),
+        collection_type: COLLECTION_TYPE_PLAYLISTS.to_string(),
+        child_count: fav_count,
+    }));
+
+    // Playlists
+    let mut playlist_item_count = 0i32;
+    if let Ok(playlist_ids) = state.repo.get_playlists(user_id).await {
+        for id in &playlist_ids {
+            if let Ok(playlist) = state.repo.get_playlist(user_id, id).await {
+                playlist_item_count += playlist.item_ids.len() as i32;
+            }
+        }
+    }
+    items.push(Item::UserView(UserView {
+        id: String::from(PLAYLIST_COLLECTION_ID),
+        name: "Playlists".to_string(),
+        collection_type: COLLECTION_TYPE_PLAYLISTS.to_string(),
+        child_count: Some(playlist_item_count),
+    }));
+
+    items
+}
+
+/// Get favorite items as native Items.
+pub async fn get_favorites_items(state: &JellyfinState, user_id: &str) -> Vec<Item> {
+    let favorite_ids = match state.repo.get_favorites(user_id).await {
+        Ok(ids) => ids,
+        Err(_) => return Vec::new(),
+    };
+    let mut items = Vec::new();
+    for item_id in &favorite_ids {
+        if let Some((_, item)) = state.collections.get_item_by_id(item_id) {
+            match &item {
+                Item::Movie(_) | Item::Show(_) => items.push(item),
+                _ => {}
+            }
+        }
+    }
+    items
+}
+
+/// Get all playlists for a user as native Items.
+pub async fn get_playlist_overview_items(state: &JellyfinState, user_id: &str) -> Vec<Item> {
+    let playlist_ids = match state.repo.get_playlists(user_id).await {
+        Ok(ids) => ids,
+        Err(_) => return Vec::new(),
+    };
+    let mut items = Vec::new();
+    for id in &playlist_ids {
+        if let Ok(playlist) = state.repo.get_playlist(user_id, id).await {
+            items.push(Item::Playlist(PlaylistItem {
+                id: playlist.id.clone(),
+                name: playlist.name.clone(),
+                child_count: playlist.item_ids.len() as i32,
+            }));
+        }
+    }
+    items
+}
+
+/// Get items in a specific playlist as native Items.
+pub async fn get_playlist_items_native(state: &JellyfinState, user_id: &str, playlist_id: &str) -> Result<Vec<Item>> {
+    let playlist = state.repo.get_playlist(user_id, playlist_id).await?;
+    let mut items = Vec::new();
+    for item_id in &playlist.item_ids {
+        if let Some((_, item)) = state.collections.get_item_by_id(item_id) {
+            items.push(item);
+        }
+    }
+    Ok(items)
+}
+
+/// Get seasons of a show as native Items.
+pub fn get_seasons_items(state: &JellyfinState, show_id: &str) -> Result<Vec<Item>> {
+    match state.collections.get_item_by_id(show_id) {
+        Some((_, Item::Show(show))) => {
+            Ok(show.seasons.iter().map(|s| Item::Season(s.clone())).collect())
+        }
+        _ => Err(anyhow!("show not found")),
+    }
+}
+
+/// Get episodes of a season as native Items.
+pub fn get_episodes_items(state: &JellyfinState, season_id: &str) -> Result<Vec<Item>> {
+    match state.collections.get_season_by_id(season_id) {
+        Some((_collection, _show, season)) => {
+            Ok(season.episodes.iter().map(|e| Item::Episode(e.clone())).collect())
+        }
+        _ => Err(anyhow!("season not found")),
+    }
+}
+
+/// Get all episodes across all seasons of a show as native Items.
+pub fn get_show_all_episodes(state: &JellyfinState, show_id: &str) -> Result<Vec<Item>> {
+    match state.collections.get_item_by_id(show_id) {
+        Some((_, Item::Show(show))) => {
+            let mut items = Vec::new();
+            for season in &show.seasons {
+                for episode in &season.episodes {
+                    items.push(Item::Episode(episode.clone()));
+                }
+            }
+            Ok(items)
+        }
+        _ => Err(anyhow!("show not found")),
+    }
+}
+
 /// Convert a slice of Items to BaseItemDtos.
 pub async fn convert_items_to_dtos(items: &[Item], state: &JellyfinState, user_id: &str) -> Vec<BaseItemDto> {
     let mut dtos = Vec::with_capacity(items.len());
@@ -97,12 +222,15 @@ pub async fn convert_items_to_dtos(items: &[Item], state: &JellyfinState, user_i
 }
 
 /// make_jfitem dispatches to the correct make function based on item type.
-pub async fn make_jfitem(state: &JellyfinState, user_id: &str, item: &Item) -> Result<JFItem> {
+pub async fn make_jfitem(state: &JellyfinState, user_id: &str, item: &Item) -> Result<BaseItemDto> {
     match item {
         Item::Movie(m) => make_jfitem_movie(state, user_id, m).await,
         Item::Show(s) => make_jfitem_show(state, user_id, s).await,
         Item::Season(s) => make_jfitem_season(state, user_id, s).await,
         Item::Episode(e) => make_jfitem_episode(state, user_id, e).await,
+        Item::CollectionFolder(cf) => Ok(make_jfitem_from_collection_folder(state, cf)),
+        Item::UserView(uv) => Ok(make_jfitem_from_user_view(state, uv)),
+        Item::Playlist(pl) => Ok(make_jfitem_from_playlist(state, pl)),
     }
 }
 
@@ -111,16 +239,13 @@ pub async fn make_jfitem(state: &JellyfinState, user_id: &str, item: &Item) -> R
 // ---------------------------------------------------------------------------
 
 /// make_jfitem_root creates the root folder item.
-pub async fn make_jfitem_root(state: &JellyfinState, user_id: &str) -> Result<JFItem> {
-    let child_count = make_jfcollection_root_overview(state, user_id)
-        .await
-        .map(|c| c.len() as i32)
-        .ok();
+pub async fn make_jfitem_root(state: &JellyfinState, user_id: &str) -> Result<BaseItemDto> {
+    let child_count = Some(get_root_overview_items(state, user_id).await.len() as i32);
 
     let genres = state.collections.details().genres;
 
     #[rustfmt::skip]
-    let item = JFItem {
+    let item = BaseItemDto {
         name:                        "Media Folders".to_string(),
         id:                          String::from(COLLECTION_ROOT_ID),
         server_id:                   state.server_id.clone(),
@@ -145,45 +270,20 @@ pub async fn make_jfitem_root(state: &JellyfinState, user_id: &str) -> Result<JF
     Ok(item)
 }
 
-/// make_jfcollection_root_overview creates a list of items representing
-/// the collections available to the user.
-pub async fn make_jfcollection_root_overview(state: &JellyfinState, user_id: &str) -> Result<Vec<JFItem>> {
-    let mut items = Vec::new();
-    for c in state.collections.get_collections() {
-        if let Ok(item) = make_jfitem_collection(state, &c.id) {
-            items.push(item);
-        }
-    }
-    // Add favorites and playlist collections
-    if let Ok(item) = make_jfitem_collection_favorites(state, user_id).await {
-        items.push(item);
-    }
-    if let Ok(item) = make_jfitem_collection_playlist(state, user_id).await {
-        items.push(item);
-    }
-    Ok(items)
-}
-
-/// make_jfitem_collection creates a collection folder item.
-pub fn make_jfitem_collection(state: &JellyfinState, collection_id: &str) -> Result<JFItem> {
-    let c = state
-        .collections
-        .get_collection(collection_id)
-        .ok_or_else(|| anyhow!("collection not found"))?;
-
-    let collection_genres = c.details().genres;
-    let coll_type = match c.collection_type {
+/// Convert a native CollectionFolder to a BaseItemDto.
+fn make_jfitem_from_collection_folder(state: &JellyfinState, cf: &CollectionFolder) -> BaseItemDto {
+    let coll_type = match cf.collection_type {
         CollectionType::Movies => COLLECTION_TYPE_MOVIES,
         CollectionType::Shows => COLLECTION_TYPE_TVSHOWS,
     };
 
     #[rustfmt::skip]
-    let item = JFItem {
-        name:                        c.name.clone(),
+    let item = BaseItemDto {
+        name:                        cf.name.clone(),
         server_id:                   state.server_id.clone(),
-        id:                          String::from(collection_id),
+        id:                          cf.id.clone(),
         parent_id:                   Some(String::from(COLLECTION_ROOT_ID)),
-        etag:                        Some(id_hash(collection_id)),
+        etag:                        Some(id_hash(&cf.id)),
         date_created:                Some(Utc::now()),
         premiere_date:               Some(Utc::now()),
         item_type:                   ITEM_TYPE_COLLECTION_FOLDER.to_string(),
@@ -194,40 +294,38 @@ pub fn make_jfitem_collection(state: &JellyfinState, collection_id: &str) -> Res
         media_type:                  Some("Unknown".to_string()),
         can_delete:                  Some(false),
         can_download:                Some(true),
-        display_preferences_id:      Some(make_jf_display_preferences_id(collection_id)),
+        display_preferences_id:      Some(make_jf_display_preferences_id(&cf.id)),
         play_access:                 Some("Full".to_string()),
         enable_media_source_display: Some(true),
         primary_image_aspect_ratio:  Some(1.7777777777777777),
-        child_count:                 Some(c.items.len() as i32),
-        genre_items:                 make_jf_genre_items(&collection_genres),
-        genres:                      collection_genres,
+        child_count:                 Some(cf.child_count),
+        genre_items:                 make_jf_genre_items(&cf.genres),
+        genres:                      cf.genres.clone(),
         sort_name:                   Some(coll_type.to_string()),
         collection_type:             Some(coll_type.to_string()),
         ..Default::default()
     };
-    Ok(item)
+    item
 }
 
-/// make_jfitem_collection_favorites creates a collection item for the favorites folder.
-pub async fn make_jfitem_collection_favorites(state: &JellyfinState, user_id: &str) -> Result<JFItem> {
-    let item_count = state.repo.get_favorites(user_id).await.map(|f| f.len() as i32).ok();
-
+/// Convert a native UserView to a BaseItemDto.
+fn make_jfitem_from_user_view(state: &JellyfinState, uv: &UserView) -> BaseItemDto {
     #[rustfmt::skip]
-    let item = JFItem {
-        name:                        "Favorites".to_string(),
+    let item = BaseItemDto {
+        name:                        uv.name.clone(),
         server_id:                   state.server_id.clone(),
-        id:                          String::from(FAVORITES_COLLECTION_ID),
+        id:                          uv.id.clone(),
         parent_id:                   Some(String::from(COLLECTION_ROOT_ID)),
-        etag:                        Some(id_hash(FAVORITES_COLLECTION_ID)),
+        etag:                        Some(id_hash(&uv.id)),
         date_created:                Some(Utc::now()),
         premiere_date:               Some(Utc::now()),
-        collection_type:             Some(COLLECTION_TYPE_PLAYLISTS.to_string()),
-        sort_name:                   Some(COLLECTION_TYPE_PLAYLISTS.to_string()),
+        collection_type:             Some(uv.collection_type.clone()),
+        sort_name:                   Some(uv.collection_type.clone()),
         item_type:                   ITEM_TYPE_USER_VIEW.to_string(),
         is_folder:                   true,
         enable_media_source_display: Some(true),
-        child_count:                 item_count,
-        display_preferences_id:      Some(make_jf_display_preferences_id(FAVORITES_COLLECTION_ID)),
+        child_count:                 uv.child_count,
+        display_preferences_id:      Some(make_jf_display_preferences_id(&uv.id)),
         play_access:                 Some("Full".to_string()),
         primary_image_aspect_ratio:  Some(1.7777777777777777),
         location_type:               Some("FileSystem".to_string()),
@@ -238,90 +336,35 @@ pub async fn make_jfitem_collection_favorites(state: &JellyfinState, user_id: &s
         can_download:                Some(true),
         ..Default::default()
     };
-    Ok(item)
+    item
 }
 
-/// make_jfitem_collection_playlist creates a top level collection item
-/// representing all playlists of the user.
-pub async fn make_jfitem_collection_playlist(state: &JellyfinState, user_id: &str) -> Result<JFItem> {
-    let mut item_count = 0i32;
-    if let Ok(playlist_ids) = state.repo.get_playlists(user_id).await {
-        for id in &playlist_ids {
-            if let Ok(playlist) = state.repo.get_playlist(user_id, id).await {
-                item_count += playlist.item_ids.len() as i32;
-            }
-        }
-    }
-
+/// Convert a native PlaylistItem to a BaseItemDto.
+fn make_jfitem_from_playlist(state: &JellyfinState, pl: &PlaylistItem) -> BaseItemDto {
     #[rustfmt::skip]
-    let item = JFItem {
-        name:                        "Playlists".to_string(),
-        server_id:                   state.server_id.clone(),
-        id:                          String::from(PLAYLIST_COLLECTION_ID),
-        parent_id:                   Some(String::from(COLLECTION_ROOT_ID)),
-        etag:                        Some(id_hash(PLAYLIST_COLLECTION_ID)),
-        date_created:                Some(Utc::now()),
-        premiere_date:               Some(Utc::now()),
-        collection_type:             Some(COLLECTION_TYPE_PLAYLISTS.to_string()),
-        sort_name:                   Some(COLLECTION_TYPE_PLAYLISTS.to_string()),
-        item_type:                   ITEM_TYPE_USER_VIEW.to_string(),
-        is_folder:                   true,
-        enable_media_source_display: Some(true),
-        child_count:                 Some(item_count),
-        display_preferences_id:      Some(make_jf_display_preferences_id(PLAYLIST_COLLECTION_ID)),
-        play_access:                 Some("Full".to_string()),
-        primary_image_aspect_ratio:  Some(1.7777777777777777),
-        location_type:               Some("FileSystem".to_string()),
-        path:                        Some("/collection".to_string()),
-        lock_data:                   Some(false),
-        media_type:                  Some("Unknown".to_string()),
-        can_delete:                  Some(false),
-        can_download:                Some(true),
-        ..Default::default()
-    };
-    Ok(item)
-}
-
-/// make_jfitem_playlist creates a playlist item.
-pub(crate) async fn make_jfitem_playlist(state: &JellyfinState, user_id: &str, playlist_id: &str) -> Result<JFItem> {
-    let playlist = state.repo.get_playlist(user_id, playlist_id).await?;
-
-    #[rustfmt::skip]
-    let item = JFItem {
+    let item = BaseItemDto {
         item_type:                   ITEM_TYPE_PLAYLIST.to_string(),
-        id:                          playlist.id.clone(),
+        id:                          pl.id.clone(),
         parent_id:                   Some(String::from(PLAYLIST_COLLECTION_ID)),
         server_id:                   state.server_id.clone(),
-        name:                        playlist.name.clone(),
-        sort_name:                   Some(playlist.name.clone()),
+        name:                        pl.name.clone(),
+        sort_name:                   Some(pl.name.clone()),
         is_folder:                   true,
         path:                        Some("/playlist".to_string()),
-        etag:                        Some(id_hash(&playlist.id)),
+        etag:                        Some(id_hash(&pl.id)),
         date_created:                Some(Utc::now()),
         can_delete:                  Some(true),
         can_download:                Some(true),
         play_access:                 Some("Full".to_string()),
-        recursive_item_count:        Some(playlist.item_ids.len() as i64),
-        child_count:                 Some(playlist.item_ids.len() as i32),
+        recursive_item_count:        Some(pl.child_count as i64),
+        child_count:                 Some(pl.child_count),
         location_type:               Some("FileSystem".to_string()),
         media_type:                  Some("Video".to_string()),
         display_preferences_id:      Some(make_jf_display_preferences_id(PLAYLIST_COLLECTION_ID)),
         enable_media_source_display: Some(true),
         ..Default::default()
     };
-    Ok(item)
-}
-
-/// make_jfitem_playlist_overview creates a list of playlists of the user.
-pub async fn make_jfitem_playlist_overview(state: &JellyfinState, user_id: &str) -> Result<Vec<JFItem>> {
-    let playlist_ids = state.repo.get_playlists(user_id).await?;
-    let mut items = Vec::new();
-    for id in &playlist_ids {
-        if let Ok(playlist_item) = make_jfitem_playlist(state, user_id, id).await {
-            items.push(playlist_item);
-        }
-    }
-    Ok(items)
+    item
 }
 
 // ---------------------------------------------------------------------------
@@ -329,7 +372,7 @@ pub async fn make_jfitem_playlist_overview(state: &JellyfinState, user_id: &str)
 // ---------------------------------------------------------------------------
 
 /// make_jfitem_movie creates a movie item.
-async fn make_jfitem_movie(state: &JellyfinState, user_id: &str, movie: &Movie) -> Result<JFItem> {
+async fn make_jfitem_movie(state: &JellyfinState, user_id: &str, movie: &Movie) -> Result<BaseItemDto> {
     let genres = movie.metadata.genres.clone();
     let genre_items = make_jf_genre_items(&genres);
 
@@ -366,7 +409,7 @@ async fn make_jfitem_movie(state: &JellyfinState, user_id: &str, movie: &Movie) 
     let user_data = Some(get_user_data(state, user_id, &movie.id).await);
 
     #[rustfmt::skip]
-    let item = JFItem {
+    let item = BaseItemDto {
         name,
         id:                          movie.id.clone(),
         server_id:                   state.server_id.clone(),
@@ -412,7 +455,7 @@ async fn make_jfitem_movie(state: &JellyfinState, user_id: &str, movie: &Movie) 
 }
 
 /// make_jfitem_show creates a show item.
-async fn make_jfitem_show(state: &JellyfinState, user_id: &str, show: &Show) -> Result<JFItem> {
+async fn make_jfitem_show(state: &JellyfinState, user_id: &str, show: &Show) -> Result<BaseItemDto> {
     let genres = show.metadata.genres.clone();
     let genre_items = make_jf_genre_items(&genres);
 
@@ -488,7 +531,7 @@ async fn make_jfitem_show(state: &JellyfinState, user_id: &str, show: &Show) -> 
     };
 
     #[rustfmt::skip]
-    let item = JFItem {
+    let item = BaseItemDto {
         name,
         id:                          show.id.clone(),
         server_id:                   state.server_id.clone(),
@@ -523,24 +566,8 @@ async fn make_jfitem_show(state: &JellyfinState, user_id: &str, show: &Show) -> 
     Ok(item)
 }
 
-/// make_jfitem_seasons_overview generates all season items for a show.
-pub async fn make_jfitem_seasons_overview(state: &JellyfinState, user_id: &str, show: &Show) -> Result<Vec<JFItem>> {
-    let mut seasons = Vec::with_capacity(show.seasons.len());
-    for s in &show.seasons {
-        match make_jfitem_season(state, user_id, s).await {
-            Ok(jfitem) => seasons.push(jfitem),
-            Err(e) => warn!("make_jfitem_seasons_overview: {}", e),
-        }
-    }
-
-    // Sort seasons by index number. Specials (season 0) get index 99, ending up last.
-    seasons.sort_by_key(|s| s.index_number.unwrap_or(0));
-
-    Ok(seasons)
-}
-
 /// make_jfitem_season creates a season item.
-async fn make_jfitem_season(state: &JellyfinState, user_id: &str, season: &Season) -> Result<JFItem> {
+async fn make_jfitem_season(state: &JellyfinState, user_id: &str, season: &Season) -> Result<BaseItemDto> {
     // Look up the full season + show context
     let (_collection, show, season) = state
         .collections
@@ -598,7 +625,7 @@ async fn make_jfitem_season(state: &JellyfinState, user_id: &str, season: &Seaso
     }
 
     #[rustfmt::skip]
-    let item = JFItem {
+    let item = BaseItemDto {
         name,
         id:                     String::from(&season.id),
         server_id:              state.server_id.clone(),
@@ -627,24 +654,8 @@ async fn make_jfitem_season(state: &JellyfinState, user_id: &str, season: &Seaso
     Ok(item)
 }
 
-/// make_jfitem_episodes_overview generates all episode items for one season.
-pub async fn make_jfitem_episodes_overview(
-    state: &JellyfinState,
-    user_id: &str,
-    season: &Season,
-) -> Result<Vec<JFItem>> {
-    let mut episodes = Vec::with_capacity(season.episodes.len());
-    for e in &season.episodes {
-        match make_jfitem_episode(state, user_id, e).await {
-            Ok(jfitem) => episodes.push(jfitem),
-            Err(e) => warn!("make_jfitem_episodes_overview: {}", e),
-        }
-    }
-    Ok(episodes)
-}
-
 /// make_jfitem_episode creates an episode item.
-pub async fn make_jfitem_episode(state: &JellyfinState, user_id: &str, episode: &Episode) -> Result<JFItem> {
+pub async fn make_jfitem_episode(state: &JellyfinState, user_id: &str, episode: &Episode) -> Result<BaseItemDto> {
     // Look up the full episode + season + show context
     let (_collection, show, season, episode) = state
         .collections
@@ -696,7 +707,7 @@ pub async fn make_jfitem_episode(state: &JellyfinState, user_id: &str, episode: 
     let user_data = get_user_data(state, user_id, &episode.id).await;
 
     #[rustfmt::skip]
-    let item = JFItem {
+    let item = BaseItemDto {
         name,
         id:                     episode.id.clone(),
         server_id:              state.server_id.clone(),

@@ -8,7 +8,10 @@ pub mod search;
 
 pub use collection::{Collection, CollectionDetails, CollectionType};
 pub use collectionrepo::CollectionRepo;
-pub use item::{make_sort_name, Episode, Item, ItemRef, Movie, Season, Show, Subs, Subtitles};
+pub use item::{
+    make_sort_name, CollectionFolder, Episode, Item, ItemRef, Movie, PlaylistItem, Season, Show,
+    Subs, Subtitles, UserView,
+};
 pub use metadata::Metadata;
 pub use parsefilename::parse_episode_name;
 pub use search::{Search, SearchDocument};

@@ -63,6 +63,7 @@ pub fn build_shows(collection: &mut Collection, _scan_interval: Duration) {
             show.base_url = format!("/data/{}", collection.id);
             let mut item = Item::Show(show);
             item.set_collection_id(collection.id.clone());
+            item.populate_hierarchy_ids();
             shows.push(item);
         }
     }
@@ -234,6 +235,8 @@ fn scan_season_directory(path: &Path, show_path: &str, season_no: i32) -> Option
                 let episode = Episode {
                     id: episode_id,
                     collection_id: String::new(),
+                    show_id: String::new(),
+                    season_id: String::new(),
                     user_data: None,
                     name: ep_name.clone(),
                     path: show_path.to_string(),

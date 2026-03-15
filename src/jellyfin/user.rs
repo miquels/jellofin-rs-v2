@@ -3,8 +3,8 @@ use std::sync::Arc;
 use super::auth::{generate_random_token, parse_auth_header, AuthSchemeValues, JellyfinAuthState};
 use super::jellyfin::JellyfinState;
 use super::types::*;
+use super::util::generate_identicon;
 use crate::database::{model, ImageMetadata, Repository};
-use crate::identicon::generate_identicon;
 use crate::idhash::id_hash;
 use axum::{
     extract::{Path as AxumPath, Query, State},

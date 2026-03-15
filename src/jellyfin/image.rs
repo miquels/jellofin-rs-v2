@@ -156,29 +156,30 @@ fn find_image_path(collections: &CollectionRepo, item_id: &str, image_type: &str
 
     let image_filename = match image_type.to_lowercase().as_str() {
         "primary" | "poster" => match &item {
-            Item::Movie(m) => &m.poster,
-            Item::Show(s) => &s.poster,
+            Item::Movie(m) => m.poster.as_str(),
+            Item::Show(s) => s.poster.as_str(),
             Item::Season(s) => s.poster(),
-            Item::Episode(e) => &e.thumb,
+            Item::Episode(e) => e.thumb.as_str(),
+            _ => "",
         },
         "backdrop" | "fanart" => match &item {
-            Item::Movie(m) => &m.fanart,
-            Item::Show(s) => &s.fanart,
-            Item::Season(s) => &s.fanart,
-            Item::Episode(_) => "",
+            Item::Movie(m) => m.fanart.as_str(),
+            Item::Show(s) => s.fanart.as_str(),
+            Item::Season(s) => s.fanart.as_str(),
+            _ => "",
         },
         "banner" => match &item {
-            Item::Movie(m) => &m.banner,
-            Item::Show(s) => &s.banner,
-            Item::Season(s) => &s.banner,
-            Item::Episode(_) => "",
+            Item::Movie(m) => m.banner.as_str(),
+            Item::Show(s) => s.banner.as_str(),
+            Item::Season(s) => s.banner.as_str(),
+            _ => "",
         },
         "thumb" => match &item {
-            Item::Episode(e) => &e.thumb,
+            Item::Episode(e) => e.thumb.as_str(),
             _ => "",
         },
         "logo" => match &item {
-            Item::Show(s) => &s.logo,
+            Item::Show(s) => s.logo.as_str(),
             _ => "",
         },
         _ => return None,
@@ -193,10 +194,11 @@ fn find_image_path(collections: &CollectionRepo, item_id: &str, image_type: &str
     }
 
     let item_path = match &item {
-        Item::Movie(m) => &m.path,
-        Item::Show(s) => &s.path,
-        Item::Season(s) => &s.path,
-        Item::Episode(e) => &e.path,
+        Item::Movie(m) => m.path.as_str(),
+        Item::Show(s) => s.path.as_str(),
+        Item::Season(s) => s.path.as_str(),
+        Item::Episode(e) => e.path.as_str(),
+        _ => "",
     };
 
     let mut path = PathBuf::from(&collection.directory);
