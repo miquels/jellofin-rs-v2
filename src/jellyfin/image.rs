@@ -131,7 +131,9 @@ async fn get_image_common(
     let width = params.width.or(params.max_width).or(params.fill_width);
     let height = params.height.or(params.max_height).or(params.fill_height);
 
-    let serve_path = state.image_resizer.resize_image(&image_path, width, height, quality);
+    let serve_path = state
+        .image_resizer
+        .resize_image(&image_path, width, height, quality);
 
     // Ensure the file exists
     if !serve_path.exists() {
@@ -291,7 +293,10 @@ pub async fn post_user_image(
     headers: HeaderMap,
     body: axum::body::Bytes,
 ) -> StatusCode {
-    let user_id = params.get("userId").cloned().unwrap_or_else(|| token.user_id.clone());
+    let user_id = params
+        .get("userId")
+        .cloned()
+        .unwrap_or_else(|| token.user_id.clone());
 
     let mime_type = headers
         .get(axum::http::header::CONTENT_TYPE)
@@ -319,7 +324,10 @@ pub async fn delete_user_image(
     State(state): State<JellyfinState>,
     Query(params): Query<std::collections::HashMap<String, String>>,
 ) -> StatusCode {
-    let user_id = params.get("userId").cloned().unwrap_or_else(|| token.user_id.clone());
+    let user_id = params
+        .get("userId")
+        .cloned()
+        .unwrap_or_else(|| token.user_id.clone());
 
     match state.repo.delete_image(&user_id, "Primary").await {
         Ok(_) => StatusCode::NO_CONTENT,
@@ -390,7 +398,11 @@ pub async fn post_person_image(
     store_db_image(&state, &person_id, &image_type, &headers, &body).await
 }
 
-async fn get_db_image(state: &JellyfinState, item_id: &str, image_type: &str) -> Result<Response, StatusCode> {
+async fn get_db_image(
+    state: &JellyfinState,
+    item_id: &str,
+    image_type: &str,
+) -> Result<Response, StatusCode> {
     let meta = state
         .repo
         .has_image(item_id, image_type)

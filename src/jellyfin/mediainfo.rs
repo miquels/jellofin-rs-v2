@@ -47,5 +47,9 @@ pub async fn playback_bitrate_test(Query(params): Query<HashMap<String, String>>
         .unwrap_or(0)
         .min(20 * 1024 * 1024); // cap at 20 MB
     let data = vec![0u8; size];
-    ([(axum::http::header::CONTENT_TYPE, "application/octet-stream")], data).into_response()
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
+        data,
+    )
+        .into_response()
 }

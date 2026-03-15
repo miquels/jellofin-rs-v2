@@ -24,7 +24,9 @@ pub async fn sessions(
 
     let access_tokens = match state.repo.get_access_tokens(&token.user_id).await {
         Ok(tokens) => tokens,
-        Err(_) => return apierror(StatusCode::INTERNAL_SERVER_ERROR, "error retrieving sessions").into_response(),
+        Err(_) => {
+            return apierror(StatusCode::INTERNAL_SERVER_ERROR, "error retrieving sessions").into_response()
+        }
     };
 
     // Keep most recent access token per device_id

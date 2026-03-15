@@ -34,17 +34,32 @@ pub fn open_sub(headers: &HeaderMap, name: &str) -> impl IntoResponse {
         Err(_) => return StatusCode::NOT_FOUND.into_response(),
     };
 
-    let charset = if is_utf8 { "charset=utf-8" } else { "charset=ISO-8859-1" };
-    let accept = headers.get(header::ACCEPT).and_then(|v| v.to_str().ok()).unwrap_or("");
+    let charset = if is_utf8 {
+        "charset=utf-8"
+    } else {
+        "charset=ISO-8859-1"
+    };
+    let accept = headers
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
 
     if accept.contains("application/json") {
         let json = serde_json::to_string_pretty(&subs).unwrap_or_else(|_| "[]".to_string());
-        return ([(header::CONTENT_TYPE, format!("application/json; {}", charset))], json).into_response();
+        return (
+            [(header::CONTENT_TYPE, format!("application/json; {}", charset))],
+            json,
+        )
+            .into_response();
     }
 
     if ext == "srt" && !accept.contains("text/vtt") {
         let content = fs::read_to_string(&srt_path).unwrap_or_default();
-        return ([(header::CONTENT_TYPE, format!("text/plain; {}", charset))], content).into_response();
+        return (
+            [(header::CONTENT_TYPE, format!("text/plain; {}", charset))],
+            content,
+        )
+            .into_response();
     }
 
     // Default to VTT

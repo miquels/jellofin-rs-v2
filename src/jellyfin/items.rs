@@ -10,9 +10,7 @@ use tracing::warn;
 use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
-use super::util::item::{
-    apply_query_item_pagination, apply_query_item_sorting, apply_query_items_filter,
-};
+use super::util::item::{apply_query_item_pagination, apply_query_item_sorting, apply_query_items_filter};
 use crate::collection::Item;
 use crate::database::model;
 use crate::idhash::*;
@@ -26,29 +24,32 @@ pub async fn items_query(
     State(state): State<JellyfinState>,
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
-    let parent_id = query_params.get("parentId").cloned();
-    let recursive = query_params.get("recursive").map(|v| v == "true").unwrap_or(false);
+    let parent_id = query_params.get("parentId");
+    let recursive = query_params
+        .get("recursive")
+        .map(|v| v == "true")
+        .unwrap_or(false);
+    let items_ids = query_params.get("ids").map(|v| v.split(',').collect::<Vec<_>>());
 
     // Get native Items based on the request type
-    let mut qitems = match &parent_id {
+    let mut qitems = match parent_id {
+        _ if items_ids.is_some() => {
+            get_items_by_ids(&state, items_ids.unwrap()).map_err(|_| StatusCode::NOT_FOUND)?
+        }
         None if recursive => get_items_all(&state),
         None => {
             // No parentId, not recursive → root overview
             get_root_overview_items(&state, &token.user_id).await
         }
-        Some(pid) if is_jf_collection_favorites_id(pid) => {
-            get_favorites_items(&state, &token.user_id).await
-        }
+        Some(pid) if is_jf_collection_favorites_id(pid) => get_favorites_items(&state, &token.user_id).await,
         Some(pid) if is_jf_collection_playlist_id(pid) => {
             get_playlist_overview_items(&state, &token.user_id).await
         }
-        Some(pid) if is_jf_playlist_id(pid) => {
-            get_playlist_items_native(&state, &token.user_id, pid)
-                .await
-                .map_err(|_| StatusCode::NOT_FOUND)?
-        }
+        Some(pid) if is_jf_playlist_id(pid) => get_playlist_items_native(&state, &token.user_id, pid)
+            .await
+            .map_err(|_| StatusCode::NOT_FOUND)?,
         Some(pid) if is_jf_collection_id(pid) && !is_jf_root_id(pid) => {
-            get_items_by_collection(&state, pid).map_err(|_| StatusCode::NOT_FOUND)?
+            get_items_by_collection(&state, pid, recursive).map_err(|_| StatusCode::NOT_FOUND)?
         }
         Some(pid) if is_jf_genre_id(pid) => get_items_by_genre(&state, pid),
         Some(pid) if is_jf_studio_id(pid) => get_items_by_studio(&state, pid),
@@ -102,7 +103,10 @@ pub async fn items_resume(
         .get_recently_watched(
             &token.user_id,
             false,
-            query_params.get("limit").and_then(|v| v.parse().ok()).unwrap_or(20),
+            query_params
+                .get("limit")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(20),
         )
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -326,4 +330,3 @@ fn get_items_by_studio(state: &JellyfinState, studio_id: &str) -> Vec<Item> {
     }
     items
 }
-

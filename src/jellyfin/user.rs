@@ -258,7 +258,10 @@ pub async fn users_update(
     Query(params): Query<std::collections::HashMap<String, String>>,
     Json(body): Json<serde_json::Value>,
 ) -> StatusCode {
-    let target_id = params.get("userId").cloned().unwrap_or_else(|| token.user_id.clone());
+    let target_id = params
+        .get("userId")
+        .cloned()
+        .unwrap_or_else(|| token.user_id.clone());
 
     let current = match state.repo.get_user_by_id(&token.user_id).await {
         Ok(u) => u,
@@ -344,7 +347,10 @@ pub async fn users_password(
     Query(params): Query<std::collections::HashMap<String, String>>,
     Json(body): Json<UserPasswordRequest>,
 ) -> StatusCode {
-    let target_id = params.get("userId").cloned().unwrap_or_else(|| token.user_id.clone());
+    let target_id = params
+        .get("userId")
+        .cloned()
+        .unwrap_or_else(|| token.user_id.clone());
 
     let current = match state.repo.get_user_by_id(&token.user_id).await {
         Ok(u) => u,
@@ -527,7 +533,14 @@ fn make_user(user: &model::User, server_id: &str) -> User {
 /// Async version: checks DB for profile image and sets primary_image_tag.
 async fn make_user_full(state: &JellyfinState, user: &model::User) -> User {
     let mut dto = make_user(user, &state.server_id);
-    if state.repo.has_image(&user.id, "Primary").await.ok().flatten().is_some() {
+    if state
+        .repo
+        .has_image(&user.id, "Primary")
+        .await
+        .ok()
+        .flatten()
+        .is_some()
+    {
         dto.primary_image_tag = Some(user.id.clone());
     }
     dto
@@ -563,7 +576,11 @@ async fn create_new_token(
 }
 
 /// Create a new user
-async fn create_user(repo: &Arc<dyn Repository>, username: &str, password: &str) -> Result<model::User, String> {
+async fn create_user(
+    repo: &Arc<dyn Repository>,
+    username: &str,
+    password: &str,
+) -> Result<model::User, String> {
     let hashed_password = hash(password, DEFAULT_COST).map_err(|e| e.to_string())?;
 
     let user = model::User {

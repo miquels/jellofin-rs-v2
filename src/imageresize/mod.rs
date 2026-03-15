@@ -75,7 +75,11 @@ impl ImageResizer {
 
         // Ensure shard directory exists
         if let Err(e) = fs::create_dir_all(&shard_dir) {
-            tracing::error!("Failed to create cache shard directory {}: {}", shard_dir.display(), e);
+            tracing::error!(
+                "Failed to create cache shard directory {}: {}",
+                shard_dir.display(),
+                e
+            );
             return source_path.to_path_buf(); // Return original if we can't allow caching
         }
 
@@ -166,7 +170,12 @@ impl ImageResizer {
     }
 
     /// Calculate target dimensions maintaining aspect ratio
-    fn calculate_dimensions(&self, img: &DynamicImage, width: Option<u32>, height: Option<u32>) -> (u32, u32) {
+    fn calculate_dimensions(
+        &self,
+        img: &DynamicImage,
+        width: Option<u32>,
+        height: Option<u32>,
+    ) -> (u32, u32) {
         let (orig_width, orig_height) = img.dimensions();
 
         match (width, height) {

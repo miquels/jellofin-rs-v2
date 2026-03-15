@@ -129,7 +129,10 @@ impl Search {
 
     /// Search for items
     pub fn search(&self, query_str: &str, limit: usize) -> Result<Vec<SearchDocument>, String> {
-        let reader = self.index.reader().map_err(|e: tantivy::TantivyError| e.to_string())?;
+        let reader = self
+            .index
+            .reader()
+            .map_err(|e: tantivy::TantivyError| e.to_string())?;
 
         let searcher = reader.searcher();
 
@@ -137,7 +140,8 @@ impl Search {
         let overview_field = self.schema.get_field("overview").unwrap();
         let genres_field = self.schema.get_field("genres").unwrap();
 
-        let query_parser = QueryParser::for_index(&self.index, vec![name_field, overview_field, genres_field]);
+        let query_parser =
+            QueryParser::for_index(&self.index, vec![name_field, overview_field, genres_field]);
 
         let query = query_parser.parse_query(query_str).map_err(|e| e.to_string())?;
 
@@ -152,7 +156,8 @@ impl Search {
         let item_type_field = self.schema.get_field("item_type").unwrap();
 
         for (_score, doc_address) in top_docs {
-            let retrieved_doc: tantivy::TantivyDocument = searcher.doc(doc_address).map_err(|e| e.to_string())?;
+            let retrieved_doc: tantivy::TantivyDocument =
+                searcher.doc(doc_address).map_err(|e| e.to_string())?;
 
             let id = retrieved_doc
                 .get_first(id_field)

@@ -82,7 +82,10 @@ pub async fn create_playlist(
     match state.repo.create_playlist(&new_playlist).await {
         Ok(id) => (StatusCode::CREATED, Json(CreatePlaylistResponse { id })).into_response(),
         Err(e) => {
-            error!("Failed to create playlist '{}' for user '{}': {}", name, user_id, e);
+            error!(
+                "Failed to create playlist '{}' for user '{}': {}",
+                name, user_id, e
+            );
             (StatusCode::OK, Json(CreatePlaylistResponse { id: String::new() })).into_response()
         }
     }

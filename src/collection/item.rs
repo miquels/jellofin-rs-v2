@@ -489,7 +489,11 @@ impl Item {
     pub fn is_folder(&self) -> bool {
         matches!(
             self,
-            Item::Show(_) | Item::Season(_) | Item::CollectionFolder(_) | Item::UserView(_) | Item::Playlist(_)
+            Item::Show(_)
+                | Item::Season(_)
+                | Item::CollectionFolder(_)
+                | Item::UserView(_)
+                | Item::Playlist(_)
         )
     }
 

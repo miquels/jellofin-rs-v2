@@ -23,7 +23,9 @@ pub fn check_etag(headers: &HeaderMap, path: &str, metadata: &std::fs::Metadata)
                         (
                             header::LAST_MODIFIED,
                             httpdate::fmt_http_date(
-                                metadata.modified().unwrap_or_else(|_| std::time::SystemTime::now()),
+                                metadata
+                                    .modified()
+                                    .unwrap_or_else(|_| std::time::SystemTime::now()),
                             ),
                         ),
                     ],

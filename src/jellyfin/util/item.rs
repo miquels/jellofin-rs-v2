@@ -10,7 +10,10 @@ use crate::idhash::*;
 // Item-based filtering (operates on native types, not BaseItemDto)
 // ---------------------------------------------------------------------------
 
-pub(crate) fn apply_query_items_filter(items: Vec<Item>, query_params: &HashMap<String, String>) -> Vec<Item> {
+pub(crate) fn apply_query_items_filter(
+    items: Vec<Item>,
+    query_params: &HashMap<String, String>,
+) -> Vec<Item> {
     items
         .into_iter()
         .filter(|item| apply_query_item_filter(item, query_params))
@@ -141,7 +144,11 @@ fn apply_query_item_filter(item: &Item, qp: &HashMap<String, String>) -> bool {
 
     // nameStartsWith (case-insensitive)
     if let Some(prefix) = qp.get("nameStartsWith") {
-        if !item.sort_name().to_lowercase().starts_with(&prefix.to_lowercase()) {
+        if !item
+            .sort_name()
+            .to_lowercase()
+            .starts_with(&prefix.to_lowercase())
+        {
             return false;
         }
     }
@@ -285,7 +292,8 @@ fn apply_query_item_filter(item: &Item, qp: &HashMap<String, String>) -> bool {
     // searchTerm
     if let Some(term) = qp.get("searchTerm") {
         let id = item.id();
-        let media = is_jf_movie_id(&id) || is_jf_show_id(&id) || is_jf_season_id(&id) || is_jf_episode_id(&id);
+        let media =
+            is_jf_movie_id(&id) || is_jf_show_id(&id) || is_jf_season_id(&id) || is_jf_episode_id(&id);
         if media && !item.name().to_lowercase().contains(&term.to_lowercase()) {
             return false;
         }
@@ -393,7 +401,11 @@ pub(crate) fn apply_query_item_pagination(
         total
     };
 
-    let paged: Vec<Item> = items.into_iter().skip(start_index).take(end - start_index).collect();
+    let paged: Vec<Item> = items
+        .into_iter()
+        .skip(start_index)
+        .take(end - start_index)
+        .collect();
     (paged, start_index as i32)
 }
 
@@ -432,4 +444,3 @@ pub fn parse_iso8601_date(input: &str) -> Option<DateTime<Utc>> {
     }
     None
 }
-

@@ -26,7 +26,9 @@ pub async fn devices_get(
 
     let access_tokens = match state.repo.get_access_tokens(&token.user_id).await {
         Ok(tokens) => tokens,
-        Err(_) => return apierror(StatusCode::INTERNAL_SERVER_ERROR, "Error retrieving devices").into_response(),
+        Err(_) => {
+            return apierror(StatusCode::INTERNAL_SERVER_ERROR, "Error retrieving devices").into_response()
+        }
     };
 
     let mut devices = Vec::new();
@@ -56,7 +58,9 @@ pub async fn devices_delete(
 
     let access_tokens = match state.repo.get_access_tokens(&token.user_id).await {
         Ok(tokens) => tokens,
-        Err(_) => return apierror(StatusCode::INTERNAL_SERVER_ERROR, "Error retrieving sessions").into_response(),
+        Err(_) => {
+            return apierror(StatusCode::INTERNAL_SERVER_ERROR, "Error retrieving sessions").into_response()
+        }
     };
 
     for t in access_tokens {
@@ -89,7 +93,9 @@ pub async fn devices_info(
 
     let access_tokens = match state.repo.get_access_tokens(&token.user_id).await {
         Ok(tokens) => tokens,
-        Err(_) => return apierror(StatusCode::INTERNAL_SERVER_ERROR, "Error retrieving sessions").into_response(),
+        Err(_) => {
+            return apierror(StatusCode::INTERNAL_SERVER_ERROR, "Error retrieving sessions").into_response()
+        }
     };
 
     for t in access_tokens {

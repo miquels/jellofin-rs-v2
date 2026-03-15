@@ -52,7 +52,7 @@ pub async fn items_latest(
     let parent_id = query_params.get("parentId").cloned();
 
     let mut qitems = if let Some(ref pid) = parent_id {
-        get_items_by_collection(&state, pid).map_err(|_| StatusCode::NOT_FOUND)?
+        get_items_by_collection(&state, pid, false).map_err(|_| StatusCode::NOT_FOUND)?
     } else {
         get_items_all(&state)
     };
@@ -242,7 +242,11 @@ pub async fn user_favorite_items_delete_simple(
 }
 
 // make_jfitem_by_id creates a BaseItemDto based on the provided item_id.
-async fn make_jfitem_by_id(state: &JellyfinState, user_id: &str, item_id: &str) -> anyhow::Result<BaseItemDto> {
+async fn make_jfitem_by_id(
+    state: &JellyfinState,
+    user_id: &str,
+    item_id: &str,
+) -> anyhow::Result<BaseItemDto> {
     use crate::collection::{CollectionFolder, PlaylistItem, UserView};
 
     // Handle special items first
@@ -252,7 +256,12 @@ async fn make_jfitem_by_id(state: &JellyfinState, user_id: &str, item_id: &str) 
 
     // Try special collection items — construct native Item, then convert
     if is_jf_collection_favorites_id(item_id) {
-        let fav_count = state.repo.get_favorites(user_id).await.map(|f| f.len() as i32).ok();
+        let fav_count = state
+            .repo
+            .get_favorites(user_id)
+            .await
+            .map(|f| f.len() as i32)
+            .ok();
         let item = Item::UserView(UserView {
             id: String::from(FAVORITES_COLLECTION_ID),
             name: "Favorites".to_string(),

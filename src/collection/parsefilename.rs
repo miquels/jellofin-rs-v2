@@ -10,11 +10,13 @@ pub fn parse_episode_name(filename: &str, season_hint: i32) -> Option<(i32, i32,
 
     // Pattern: ___.s03e04e05.___ or ___.s03e04-e05.___
     static PAT2: OnceLock<Regex> = OnceLock::new();
-    let pat2 = PAT2.get_or_init(|| Regex::new(r"^.*[ ._][sS]([0-9]+)[eE]([0-9]+)-?[eE]([0-9]+)[ ._].*$").unwrap());
+    let pat2 =
+        PAT2.get_or_init(|| Regex::new(r"^.*[ ._][sS]([0-9]+)[eE]([0-9]+)-?[eE]([0-9]+)[ ._].*$").unwrap());
 
     // Pattern: ___.2015.03.08.___
     static PAT3: OnceLock<Regex> = OnceLock::new();
-    let pat3 = PAT3.get_or_init(|| Regex::new(r"^.*[ .]([0-9]{4})[.-]([0-9]{2})[.-]([0-9]{2})[ .].*$").unwrap());
+    let pat3 =
+        PAT3.get_or_init(|| Regex::new(r"^.*[ .]([0-9]{4})[.-]([0-9]{2})[.-]([0-9]{2})[ .].*$").unwrap());
 
     // Pattern: ___.308.___  (or 3x08) where first number is season.
     static PAT4: OnceLock<Regex> = OnceLock::new();

@@ -28,7 +28,9 @@ pub struct NotflixState {
 }
 
 /// GET /api/collections - List all collections
-pub async fn collections_handler(State(state): State<NotflixState>) -> Result<Json<Vec<Collection>>, StatusCode> {
+pub async fn collections_handler(
+    State(state): State<NotflixState>,
+) -> Result<Json<Vec<Collection>>, StatusCode> {
     let collections = state.collections.get_collections();
     let result: Vec<Collection> = collections
         .iter()
@@ -217,9 +219,10 @@ pub async fn data_handler(
         .and_then(|v| v.parse().ok());
 
     // Try image resizer
-    let resized_path = state
-        .image_resizer
-        .resize_image(std::path::Path::new(file_path_str), width, height, quality);
+    let resized_path =
+        state
+            .image_resizer
+            .resize_image(std::path::Path::new(file_path_str), width, height, quality);
     if resized_path.exists() {
         // Look up metadata for ETag check
         if let Ok(metadata) = std::fs::metadata(&resized_path) {
@@ -509,5 +512,8 @@ fn copy_episode(episode: &crate::collection::Episode, do_nfo: bool) -> Episode {
 
 /// Helper: URL-escape a path
 fn escape_path(path: &str) -> String {
-    path.split('/').map(|part| encode(part)).collect::<Vec<_>>().join("/")
+    path.split('/')
+        .map(|part| encode(part))
+        .collect::<Vec<_>>()
+        .join("/")
 }

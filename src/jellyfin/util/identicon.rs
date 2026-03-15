@@ -32,7 +32,8 @@ pub fn generate_identicon(seed: &str) -> Vec<u8> {
     let mut buf = Vec::new();
     let cursor = std::io::Cursor::new(&mut buf);
     let encoder = image::codecs::png::PngEncoder::new(cursor);
-    if let Err(_) = image::ImageEncoder::write_image(encoder, img.as_raw(), SIZE, SIZE, image::ExtendedColorType::Rgb8)
+    if let Err(_) =
+        image::ImageEncoder::write_image(encoder, img.as_raw(), SIZE, SIZE, image::ExtendedColorType::Rgb8)
     {
         return Vec::new();
     }

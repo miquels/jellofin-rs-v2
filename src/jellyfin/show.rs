@@ -9,9 +9,7 @@ use std::collections::HashMap;
 use super::jellyfin::JellyfinState;
 use super::jfitem::*;
 use super::types::*;
-use super::util::item::{
-    apply_query_item_pagination, apply_query_item_sorting, apply_query_items_filter,
-};
+use super::util::item::{apply_query_item_pagination, apply_query_item_sorting, apply_query_items_filter};
 use crate::collection::Item;
 use crate::database::model;
 
@@ -23,8 +21,7 @@ pub async fn show_episodes(
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
     // Get all episodes across all seasons as native Items
-    let mut qitems =
-        get_show_all_episodes(&state, &show_id).map_err(|_| StatusCode::NOT_FOUND)?;
+    let mut qitems = get_show_all_episodes(&state, &show_id).map_err(|_| StatusCode::NOT_FOUND)?;
 
     if needs_user_data(&query_params) {
         load_user_data(&mut qitems, &state, &token.user_id).await;
@@ -52,8 +49,7 @@ pub async fn show_seasons(
     AxumPath(show_id): AxumPath<String>,
     Query(query_params): Query<HashMap<String, String>>,
 ) -> Result<Json<UserItemsResponse>, StatusCode> {
-    let mut qitems =
-        get_seasons_items(&state, &show_id).map_err(|_| StatusCode::NOT_FOUND)?;
+    let mut qitems = get_seasons_items(&state, &show_id).map_err(|_| StatusCode::NOT_FOUND)?;
 
     if needs_user_data(&query_params) {
         load_user_data(&mut qitems, &state, &token.user_id).await;
@@ -63,9 +59,10 @@ pub async fn show_seasons(
 
     // Sort seasons by index number (specials/season 0 → index 99, end up last)
     let mut qitems = qitems;
-    apply_query_item_sorting(&mut qitems, &HashMap::from([
-        ("sortBy".to_string(), "IndexNumber".to_string()),
-    ]));
+    apply_query_item_sorting(
+        &mut qitems,
+        &HashMap::from([("sortBy".to_string(), "IndexNumber".to_string())]),
+    );
 
     let total_count = qitems.len() as i32;
     let items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;

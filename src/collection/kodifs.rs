@@ -103,7 +103,10 @@ fn scan_movie_directory(path: &Path, collection_root: &str) -> Option<Movie> {
         file_size: std::fs::metadata(&video_file).ok()?.len() as i64,
         metadata: {
             // Get video filename without extension
-            let video_stem = video_file.file_stem().and_then(|s| s.to_str()).unwrap_or(dir_name);
+            let video_stem = video_file
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or(dir_name);
             let nfo_path = find_nfo(path, dir_name, video_stem);
             if !nfo_path.as_os_str().is_empty() {
                 super::nfo::parse_movie_nfo(&nfo_path).unwrap_or_default()

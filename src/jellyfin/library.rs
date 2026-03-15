@@ -87,9 +87,7 @@ pub async fn item_ancestors(
     let mut ancestors: Vec<Item> = Vec::new();
 
     // Try episode first (most specific) → season → show → collection
-    if let Some((collection, show, season, _episode)) =
-        state.collections.get_episode_by_id(&item_id)
-    {
+    if let Some((collection, show, season, _episode)) = state.collections.get_episode_by_id(&item_id) {
         ancestors.push(Item::Season(season));
         ancestors.push(Item::Show(show));
         ancestors.push(Item::CollectionFolder(CollectionFolder {
@@ -101,9 +99,7 @@ pub async fn item_ancestors(
         }));
     }
     // Try season → show → collection
-    else if let Some((collection, show, _season)) =
-        state.collections.get_season_by_id(&item_id)
-    {
+    else if let Some((collection, show, _season)) = state.collections.get_season_by_id(&item_id) {
         ancestors.push(Item::Show(show));
         ancestors.push(Item::CollectionFolder(CollectionFolder {
             id: collection.id.clone(),

@@ -7,12 +7,12 @@ use async_trait::async_trait;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 
 use super::model::{
-    AccessToken, DatabaseError, ImageMetadata, Item, Person, Playlist, QuickConnectCode, Result, User, UserData,
-    UserProperties,
+    AccessToken, DatabaseError, ImageMetadata, Item, Person, Playlist, QuickConnectCode, Result, User,
+    UserData, UserProperties,
 };
 use super::{
-    AccessTokenRepo, ImageRepo, ItemRepo, PersonRepo, PlaylistRepo, QuickConnectRepo, Repository, UserDataRepo,
-    UserRepo,
+    AccessTokenRepo, ImageRepo, ItemRepo, PersonRepo, PlaylistRepo, QuickConnectRepo, Repository,
+    UserDataRepo, UserRepo,
 };
 use crate::idhash::*;
 
@@ -251,10 +251,11 @@ impl Repository for SqliteRepository {
 impl SqliteRepository {
     /// Load user properties from the user_properties key-value table.
     async fn load_user_properties(&self, user_id: &str) -> Result<UserProperties> {
-        let rows = sqlx::query_as::<_, (String, String)>("SELECT key, value FROM user_properties WHERE userid = ?")
-            .bind(user_id)
-            .fetch_all(&self.pool)
-            .await?;
+        let rows =
+            sqlx::query_as::<_, (String, String)>("SELECT key, value FROM user_properties WHERE userid = ?")
+                .bind(user_id)
+                .fetch_all(&self.pool)
+                .await?;
 
         let mut props = UserProperties::default();
         for (key, value) in rows {
@@ -655,7 +656,10 @@ impl PlaylistRepo for SqliteRepository {
         #[allow(unused_assignments)]
         let mut new_id = String::new();
         let playlist_id = if playlist.id == "" {
-            new_id = id_hash_prefix(ITEM_PREFIX_PLAYLIST, &format!("{}:{}", playlist.user_id, playlist.name));
+            new_id = id_hash_prefix(
+                ITEM_PREFIX_PLAYLIST,
+                &format!("{}:{}", playlist.user_id, playlist.name),
+            );
             new_id.as_str()
         } else {
             &playlist.id
@@ -741,7 +745,12 @@ impl PlaylistRepo for SqliteRepository {
         })
     }
 
-    async fn add_items_to_playlist(&self, _user_id: &str, playlist_id: &str, item_ids: &[String]) -> Result<()> {
+    async fn add_items_to_playlist(
+        &self,
+        _user_id: &str,
+        playlist_id: &str,
+        item_ids: &[String],
+    ) -> Result<()> {
         let row = sqlx::query_as::<_, (String,)>("SELECT item_ids FROM playlists WHERE id = ?")
             .bind(playlist_id)
             .fetch_optional(&self.pool)
@@ -932,7 +941,13 @@ impl ImageRepo for SqliteRepository {
         Ok((meta, row.4))
     }
 
-    async fn store_image(&self, item_id: &str, image_type: &str, meta: &ImageMetadata, data: &[u8]) -> Result<()> {
+    async fn store_image(
+        &self,
+        item_id: &str,
+        image_type: &str,
+        meta: &ImageMetadata,
+        data: &[u8],
+    ) -> Result<()> {
         sqlx::query(
             "INSERT OR REPLACE INTO images (itemid, type, mimetype, etag, updated, filesize, data) VALUES (?, ?, ?, ?, ?, ?, ?)"
         )

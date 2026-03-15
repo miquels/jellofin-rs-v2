@@ -98,7 +98,11 @@ impl CollectionRepo {
 
     /// Get a collection by ID
     pub fn get_collection(&self, collection_id: &str) -> Option<Collection> {
-        self.collections.load().iter().find(|c| c.id == collection_id).cloned()
+        self.collections
+            .load()
+            .iter()
+            .find(|c| c.id == collection_id)
+            .cloned()
     }
 
     /// Get an item by collection ID and item ID
@@ -192,7 +196,12 @@ impl CollectionRepo {
                     for season in &show.seasons {
                         for episode in &season.episodes {
                             if episode.id == episode_id {
-                                return Some((collection.clone(), show.clone(), season.clone(), episode.clone()));
+                                return Some((
+                                    collection.clone(),
+                                    show.clone(),
+                                    season.clone(),
+                                    episode.clone(),
+                                ));
                             }
                         }
                     }
@@ -472,7 +481,13 @@ mod tests {
     fn test_add_invalid_collection_type() {
         let repo = CollectionRepo::new();
 
-        let result = repo.add_collection("Test".to_string(), None, "invalid", "/test".to_string(), "".to_string());
+        let result = repo.add_collection(
+            "Test".to_string(),
+            None,
+            "invalid",
+            "/test".to_string(),
+            "".to_string(),
+        );
 
         assert!(result.is_err());
     }

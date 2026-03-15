@@ -40,7 +40,7 @@ pub async fn search_hints(
     });
 
     let mut qitems = if let Some(ref scid) = search_collection_id {
-        get_items_by_collection(&state, scid).map_err(|_| StatusCode::NOT_FOUND)?
+        get_items_by_collection(&state, scid, false).map_err(|_| StatusCode::NOT_FOUND)?
     } else {
         get_items_all(&state)
     };

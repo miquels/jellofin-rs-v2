@@ -64,13 +64,47 @@ pub async fn load_user_data(items: &mut [Item], state: &JellyfinState, user_id: 
     }
 }
 
+/// Look up items by a list of IDs across all collections.
+pub fn get_items_by_ids(state: &JellyfinState, ids: Vec<&str>) -> Result<Vec<Item>> {
+    let mut items = Vec::new();
+    for id in ids {
+        if let Some((_, item)) = state.collections.get_item_by_id(id) {
+            items.push(item);
+        }
+    }
+    Ok(items)
+}
+
 /// Collect all items from a specific collection.
-pub fn get_items_by_collection(state: &JellyfinState, collection_id: &str) -> Result<Vec<Item>> {
+/// When `recursive` is true, Shows are flattened to include their Seasons and Episodes.
+pub fn get_items_by_collection(
+    state: &JellyfinState,
+    collection_id: &str,
+    recursive: bool,
+) -> Result<Vec<Item>> {
     let c = state
         .collections
         .get_collection(collection_id)
         .ok_or_else(|| anyhow!("could not find collection"))?;
-    Ok(c.items)
+    if !recursive {
+        return Ok(c.items);
+    }
+    let mut items = Vec::new();
+    for item in c.items {
+        match item {
+            Item::Show(show) => {
+                for season in &show.seasons {
+                    items.push(Item::Season(season.clone()));
+                    for episode in &season.episodes {
+                        items.push(Item::Episode(episode.clone()));
+                    }
+                }
+                items.push(Item::Show(show));
+            }
+            other => items.push(other),
+        }
+    }
+    Ok(items)
 }
 
 /// Collect all items across all collections.
@@ -97,7 +131,12 @@ pub async fn get_root_overview_items(state: &JellyfinState, user_id: &str) -> Ve
     }
 
     // Favorites
-    let fav_count = state.repo.get_favorites(user_id).await.map(|f| f.len() as i32).ok();
+    let fav_count = state
+        .repo
+        .get_favorites(user_id)
+        .await
+        .map(|f| f.len() as i32)
+        .ok();
     items.push(Item::UserView(UserView {
         id: String::from(FAVORITES_COLLECTION_ID),
         name: "Favorites".to_string(),
@@ -162,7 +201,11 @@ pub async fn get_playlist_overview_items(state: &JellyfinState, user_id: &str) -
 }
 
 /// Get items in a specific playlist as native Items.
-pub async fn get_playlist_items_native(state: &JellyfinState, user_id: &str, playlist_id: &str) -> Result<Vec<Item>> {
+pub async fn get_playlist_items_native(
+    state: &JellyfinState,
+    user_id: &str,
+    playlist_id: &str,
+) -> Result<Vec<Item>> {
     let playlist = state.repo.get_playlist(user_id, playlist_id).await?;
     let mut items = Vec::new();
     for item_id in &playlist.item_ids {
@@ -176,9 +219,7 @@ pub async fn get_playlist_items_native(state: &JellyfinState, user_id: &str, pla
 /// Get seasons of a show as native Items.
 pub fn get_seasons_items(state: &JellyfinState, show_id: &str) -> Result<Vec<Item>> {
     match state.collections.get_item_by_id(show_id) {
-        Some((_, Item::Show(show))) => {
-            Ok(show.seasons.iter().map(|s| Item::Season(s.clone())).collect())
-        }
+        Some((_, Item::Show(show))) => Ok(show.seasons.iter().map(|s| Item::Season(s.clone())).collect()),
         _ => Err(anyhow!("show not found")),
     }
 }
@@ -655,7 +696,11 @@ async fn make_jfitem_season(state: &JellyfinState, user_id: &str, season: &Seaso
 }
 
 /// make_jfitem_episode creates an episode item.
-pub async fn make_jfitem_episode(state: &JellyfinState, user_id: &str, episode: &Episode) -> Result<BaseItemDto> {
+pub async fn make_jfitem_episode(
+    state: &JellyfinState,
+    user_id: &str,
+    episode: &Episode,
+) -> Result<BaseItemDto> {
     // Look up the full episode + season + show context
     let (_collection, show, season, episode) = state
         .collections
@@ -692,7 +737,12 @@ pub async fn make_jfitem_episode(state: &JellyfinState, user_id: &str, episode: 
         Some(episode.created)
     };
 
-    let media_sources = make_media_source(&episode.id, &episode.file_name, episode.file_size, &episode.metadata);
+    let media_sources = make_media_source(
+        &episode.id,
+        &episode.file_name,
+        episode.file_size,
+        &episode.metadata,
+    );
     let media_streams = media_sources
         .first()
         .map(|ms| ms.media_streams.clone())
@@ -849,7 +899,11 @@ pub(crate) fn make_media_source(
 /// make_jf_media_streams creates media stream information from metadata.
 fn make_jf_media_streams(metadata: &crate::collection::Metadata) -> Vec<MediaStream> {
     // Video stream
-    let video_codec = metadata.video_codec.as_deref().unwrap_or("unknown").to_lowercase();
+    let video_codec = metadata
+        .video_codec
+        .as_deref()
+        .unwrap_or("unknown")
+        .to_lowercase();
     let (codec, codec_tag) = match video_codec.as_str() {
         "avc" | "x264" | "h264" => ("h264", Some("avc1")),
         "x265" | "h265" | "hevc" => ("hevc", Some("hvc1")),
@@ -903,7 +957,11 @@ fn make_jf_media_streams(metadata: &crate::collection::Metadata) -> Vec<MediaStr
         _ => ("Unknown", "unknown"),
     };
 
-    let audio_codec_str = metadata.audio_codec.as_deref().unwrap_or("unknown").to_lowercase();
+    let audio_codec_str = metadata
+        .audio_codec
+        .as_deref()
+        .unwrap_or("unknown")
+        .to_lowercase();
     let (a_codec, a_codec_tag) = match audio_codec_str.as_str() {
         "ac3" => ("ac3", Some("ac-3")),
         "aac" => ("aac", Some("mp4a")),

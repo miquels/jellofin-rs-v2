@@ -2,7 +2,8 @@ pub mod model;
 pub mod sqlite;
 
 pub use model::{
-    AccessToken, DatabaseError, ImageMetadata, Item, Playlist, QuickConnectCode, Result, User, UserData, UserProperties,
+    AccessToken, DatabaseError, ImageMetadata, Item, Playlist, QuickConnectCode, Result, User, UserData,
+    UserProperties,
 };
 pub use sqlite::SqliteRepository;
 
@@ -77,7 +78,13 @@ pub trait QuickConnectRepo {
 pub trait ImageRepo {
     async fn has_image(&self, item_id: &str, image_type: &str) -> Result<Option<ImageMetadata>>;
     async fn get_image(&self, item_id: &str, image_type: &str) -> Result<(ImageMetadata, Vec<u8>)>;
-    async fn store_image(&self, item_id: &str, image_type: &str, meta: &ImageMetadata, data: &[u8]) -> Result<()>;
+    async fn store_image(
+        &self,
+        item_id: &str,
+        image_type: &str,
+        meta: &ImageMetadata,
+        data: &[u8],
+    ) -> Result<()>;
     async fn delete_image(&self, item_id: &str, image_type: &str) -> Result<()>;
 }
 
@@ -118,7 +125,12 @@ pub trait PlaylistRepo {
     /// Get a playlist by name for a user.
     async fn get_playlist_by_name(&self, user_id: &str, name: &str) -> Result<Playlist>;
     /// Add items to a playlist.
-    async fn add_items_to_playlist(&self, user_id: &str, playlist_id: &str, item_ids: &[String]) -> Result<()>;
+    async fn add_items_to_playlist(
+        &self,
+        user_id: &str,
+        playlist_id: &str,
+        item_ids: &[String],
+    ) -> Result<()>;
     /// Delete items from a playlist.
     async fn delete_items_from_playlist(&self, playlist_id: &str, item_ids: &[String]) -> Result<()>;
     /// Move a playlist item to a new index.

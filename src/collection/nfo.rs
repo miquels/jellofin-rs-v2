@@ -214,7 +214,9 @@ fn apply_file_info(m: &mut Metadata, fi: FileInfo) {
             m.video_codec = v.codec;
             m.video_width = v.width;
             m.video_height = v.height;
-            m.duration = v.durationinseconds.map(|d| std::time::Duration::from_secs(d as u64));
+            m.duration = v
+                .durationinseconds
+                .map(|d| std::time::Duration::from_secs(d as u64));
         }
         if let Some(a) = sd.audio {
             m.audio_codec = a.codec;

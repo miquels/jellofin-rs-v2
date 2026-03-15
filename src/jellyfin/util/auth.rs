@@ -157,7 +157,9 @@ fn extract_token(headers: &HeaderMap, request: &Request<axum::body::Body>) -> Op
 
     // Try query parameter ApiKey
     if let Some(query) = request.uri().query() {
-        let params: HashMap<String, String> = url::form_urlencoded::parse(query.as_bytes()).into_owned().collect();
+        let params: HashMap<String, String> = url::form_urlencoded::parse(query.as_bytes())
+            .into_owned()
+            .collect();
 
         if let Some(api_key) = params.get("ApiKey") {
             return Some(api_key.clone());

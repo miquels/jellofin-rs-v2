@@ -129,7 +129,10 @@ async fn user_data_update(
     // Ignore updates with zero position unless explicitly marking as watched.
     // Clients send position_ticks=0 on abrupt stop, which would erase real progress.
     if position_ticks == 0 && !mark_as_watched {
-        debug!("userDataUpdate: ignoring zero-position update for itemID: {}", item_id);
+        debug!(
+            "userDataUpdate: ignoring zero-position update for itemID: {}",
+            item_id
+        );
         return Ok(());
     }
 
