@@ -119,17 +119,20 @@ pub async fn items_resume(
     }
 
     // Resume items always need user_data for display
-    //
-    // TODO: figure out if filtering and sorting is dependent on user_data.
-    // TODO: if not, we can load user_data after filtering and sorting.
-    load_user_data(&mut qitems, &state, &token.user_id).await;
+    let mut user_data_loaded = false;
+    if needs_user_data(&query_params) {
+        load_user_data(&mut qitems, &state, &token.user_id).await;
+        user_data_loaded = true;
+    }
 
-    let qitems = apply_query_items_filter(qitems, &query_params);
+    let mut qitems = apply_query_items_filter(qitems, &query_params);
     let total_count = qitems.len() as i32;
-    let mut qitems = qitems;
     apply_query_item_sorting(&mut qitems, &query_params);
-    let (qitems, start_index) = apply_query_item_pagination(qitems, &query_params);
+    let (mut qitems, start_index) = apply_query_item_pagination(qitems, &query_params);
 
+    if !user_data_loaded {
+        load_user_data(&mut qitems, &state, &token.user_id).await;
+    }
     let items = convert_items_to_dtos(&qitems, &state, &token.user_id).await;
 
     Ok(Json(UsersItemsResumeResponse {
@@ -137,30 +140,6 @@ pub async fn items_resume(
         start_index,
         total_record_count: total_count,
     }))
-}
-
-/// POST /Items/{item}/Refresh - Queue item refresh (not implemented)
-pub async fn items_refresh() -> StatusCode {
-    StatusCode::NO_CONTENT
-}
-
-/// GET /Items/{item}/RemoteImages - Get remote images (not implemented)
-pub async fn items_remote_images() -> Json<ItemRemoteImagesResponse> {
-    Json(ItemRemoteImagesResponse {
-        images: Vec::new(),
-        total_record_count: 0,
-        providers: Vec::new(),
-    })
-}
-
-/// GET /SyncPlay/List - List SyncPlay groups (stub)
-pub async fn sync_play_list() -> Json<Vec<serde_json::Value>> {
-    Json(Vec::new())
-}
-
-/// POST /SyncPlay/New - Create SyncPlay group (not implemented)
-pub async fn sync_play_new() -> StatusCode {
-    StatusCode::UNAUTHORIZED
 }
 
 /// GET /Users/{user}/Items/{item}/UserData

@@ -1193,3 +1193,12 @@ pub struct ItemRemoteImagesResponse {
     pub total_record_count: i32,
     pub providers: Vec<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "PascalCase")]
+pub struct RecommendationDto {
+    pub items: Vec<BaseItemDto>,
+    pub recommendation_type: String,
+    pub category_id: String,
+    pub baseline_item_name: String,
+}
