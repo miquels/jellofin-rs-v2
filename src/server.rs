@@ -1,3 +1,4 @@
+#![cfg_attr(rustfmt, rustfmt_skip)]
 mod config;
 mod middleware;
 
@@ -167,7 +168,6 @@ fn build_router(state: AppState) -> Router {
     };
 
     // Notflix API routes (no auth required)
-    #[rustfmt::skip]
     let notflix_routes = Router::new()
         .route("/api/collections", get(crate::notflix::collections_handler))
         .route("/api/collection/{id}", get(crate::notflix::collection_handler))
@@ -179,7 +179,6 @@ fn build_router(state: AppState) -> Router {
         .with_state(notflix_state);
 
     // Jellyfin public routes (no auth required)
-    #[rustfmt::skip]
     let jellyfin_public = Router::new()
         .route("/branding/configuration", get(crate::jellyfin::branding_configuration))
         .route("/branding/css", get(crate::jellyfin::branding_css))
@@ -194,7 +193,6 @@ fn build_router(state: AppState) -> Router {
         .with_state(jellyfin_auth_state.clone());
 
     // Jellyfin images (Public, uses JellyfinState)
-    #[rustfmt::skip]
     let jellyfin_images_public = Router::new()
         .route("/items/{item}/images/{type}", get(crate::jellyfin::get_item_image))
         .route("/items/{item}/images/{type}/{index}", get(crate::jellyfin::get_item_image_indexed))
@@ -205,7 +203,6 @@ fn build_router(state: AppState) -> Router {
         .with_state(jellyfin_state.clone());
 
     // Jellyfin system and user routes (some public, some protected)
-    #[rustfmt::skip]
     let jellyfin_api = Router::new()
         // Public system routes
         .route("/system/info/public", get(crate::jellyfin::system_info_public))
@@ -356,7 +353,6 @@ fn build_router(state: AppState) -> Router {
         .with_state(jellyfin_state);
 
     // Combine all routes
-    #[rustfmt::skip]
     Router::new()
         .route("/robots.txt", get(robots_handler))
         .merge(notflix_routes)

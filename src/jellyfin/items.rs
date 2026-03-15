@@ -128,6 +128,9 @@ pub async fn items_resume(
     }
 
     // Resume items always need user_data for display
+    //
+    // TODO: figure out if filtering and sorting is dependent on user_data.
+    // TODO: if not, we can load user_data after filtering and sorting.
     load_user_data(&mut qitems, &state, &token.user_id).await;
 
     let qitems = apply_query_items_filter(qitems, &query_params);
